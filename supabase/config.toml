@@ -1,1 +1,7 @@
 project_id = "fgbxxiscycbvodgguafh"
+
+[functions.generate-dxf]
+verify_jwt = true
+
+[functions.generate-kml]
+verify_jwt = true
