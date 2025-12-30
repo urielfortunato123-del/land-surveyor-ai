@@ -29,10 +29,10 @@ const LandingPage = () => {
           </div>
           
           <div className="flex items-center gap-3">
-            <Link to="/login">
+            <Link to="/auth">
               <Button variant="ghost">Entrar</Button>
             </Link>
-            <Link to="/register">
+            <Link to="/auth">
               <Button variant="hero">Começar Grátis</Button>
             </Link>
           </div>
@@ -69,7 +69,7 @@ const LandingPage = () => {
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link to="/register">
+              <Link to="/auth">
                 <Button variant="hero" size="xl">
                   <FileText className="w-5 h-5" />
                   Processar Matrícula
@@ -327,6 +327,107 @@ const LandingPage = () => {
         </div>
       </section>
 
+      {/* Pricing */}
+      <section id="pricing" className="py-24 px-6 bg-secondary/30">
+        <div className="container mx-auto">
+          <motion.div 
+            className="text-center mb-16"
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+          >
+            <h2 className="font-display text-4xl font-bold text-foreground mb-4">
+              Planos
+            </h2>
+            <p className="text-lg text-muted-foreground">
+              Escolha o plano ideal para suas necessidades
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {[
+              {
+                name: 'Free',
+                price: 'R$ 0',
+                description: 'Para experimentar o GeoMatrícula',
+                features: [
+                  '3 projetos por mês',
+                  'Exportação DXF e KML',
+                  'Visualização no mapa',
+                  'Relatório básico',
+                ],
+                popular: false,
+              },
+              {
+                name: 'Pro',
+                price: 'R$ 49',
+                period: '/mês',
+                description: 'Para profissionais autônomos',
+                features: [
+                  'Projetos ilimitados',
+                  'Exportação DXF, KML e PDF',
+                  'Modo IA assistido',
+                  'Histórico de versões',
+                  'Suporte prioritário',
+                ],
+                popular: true,
+              },
+              {
+                name: 'Enterprise',
+                price: 'Sob consulta',
+                description: 'Para escritórios e empresas',
+                features: [
+                  'Tudo do Pro',
+                  'API de integração',
+                  'Multi-usuários',
+                  'Treinamento dedicado',
+                  'SLA garantido',
+                ],
+                popular: false,
+              },
+            ].map((plan, i) => (
+              <motion.div
+                key={i}
+                className={`glass-card rounded-xl p-6 ${plan.popular ? 'ring-2 ring-primary relative' : ''}`}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+              >
+                {plan.popular && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-primary text-primary-foreground text-xs font-medium rounded-full">
+                    Mais Popular
+                  </div>
+                )}
+                <div className="text-center mb-6">
+                  <h3 className="font-display text-xl font-semibold text-foreground mb-2">
+                    {plan.name}
+                  </h3>
+                  <div className="flex items-end justify-center gap-1">
+                    <span className="font-display text-4xl font-bold text-foreground">{plan.price}</span>
+                    {plan.period && <span className="text-muted-foreground mb-1">{plan.period}</span>}
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-2">{plan.description}</p>
+                </div>
+                <ul className="space-y-3 mb-6">
+                  {plan.features.map((feature, j) => (
+                    <li key={j} className="flex items-center gap-2 text-sm text-foreground">
+                      <CheckCircle className="w-4 h-4 text-success" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+                <Link to="/auth" className="block">
+                  <Button variant={plan.popular ? 'hero' : 'outline'} className="w-full">
+                    {plan.name === 'Enterprise' ? 'Fale Conosco' : 'Começar Agora'}
+                  </Button>
+                </Link>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="py-24 px-6 bg-gradient-to-br from-primary to-accent relative overflow-hidden">
         <div className="absolute inset-0 grid-pattern opacity-10" />
@@ -342,7 +443,7 @@ const LandingPage = () => {
             <p className="text-xl text-primary-foreground/80 mb-10 max-w-xl mx-auto">
               Crie sua conta gratuita e processe sua primeira matrícula em minutos.
             </p>
-            <Link to="/register">
+            <Link to="/auth">
               <Button 
                 size="xl" 
                 className="bg-background text-foreground hover:bg-background/90 shadow-xl"
