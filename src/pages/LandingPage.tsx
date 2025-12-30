@@ -369,8 +369,9 @@ const LandingPage = () => {
               <a href="#" className="hover:text-foreground transition-colors">Privacidade</a>
               <a href="#" className="hover:text-foreground transition-colors">Suporte</a>
             </div>
-            <div className="text-sm text-muted-foreground">
-              © 2024 GeoMatrícula. Todos os direitos reservados.
+            <div className="text-sm text-muted-foreground text-center md:text-right">
+              <div>© 2024 GeoMatrícula. Todos os direitos reservados.</div>
+              <div className="mt-1">Desenvolvido por Uriel da Fonseca Fortunato</div>
             </div>
           </div>
         </div>
