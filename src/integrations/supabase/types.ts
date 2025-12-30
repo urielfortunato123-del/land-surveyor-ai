@@ -14,7 +14,181 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      documents: {
+        Row: {
+          created_at: string
+          extracted_text: string | null
+          file_type: string
+          filename: string
+          id: string
+          project_id: string
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string
+          extracted_text?: string | null
+          file_type: string
+          filename: string
+          id?: string
+          project_id: string
+          storage_path: string
+        }
+        Update: {
+          created_at?: string
+          extracted_text?: string | null
+          file_type?: string
+          filename?: string
+          id?: string
+          project_id?: string
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      parcel_results: {
+        Row: {
+          area_computed: number
+          area_declared: number | null
+          closure_error: number
+          confidence_score: number
+          created_at: string
+          dxf_path: string | null
+          extraction_method: string
+          geojson: Json | null
+          id: string
+          kml_path: string | null
+          perimeter_computed: number
+          project_id: string
+          report_pdf_path: string | null
+          segments_json: Json
+          warnings_json: Json | null
+        }
+        Insert: {
+          area_computed: number
+          area_declared?: number | null
+          closure_error: number
+          confidence_score?: number
+          created_at?: string
+          dxf_path?: string | null
+          extraction_method?: string
+          geojson?: Json | null
+          id?: string
+          kml_path?: string | null
+          perimeter_computed: number
+          project_id: string
+          report_pdf_path?: string | null
+          segments_json?: Json
+          warnings_json?: Json | null
+        }
+        Update: {
+          area_computed?: number
+          area_declared?: number | null
+          closure_error?: number
+          confidence_score?: number
+          created_at?: string
+          dxf_path?: string | null
+          extraction_method?: string
+          geojson?: Json | null
+          id?: string
+          kml_path?: string | null
+          perimeter_computed?: number
+          project_id?: string
+          report_pdf_path?: string | null
+          segments_json?: Json
+          warnings_json?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parcel_results_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          company: string | null
+          crea_number: string | null
+          created_at: string
+          full_name: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company?: string | null
+          crea_number?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company?: string | null
+          crea_number?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      projects: {
+        Row: {
+          city: string | null
+          created_at: string
+          id: string
+          matricula_number: string | null
+          owner_name: string | null
+          property_address: string | null
+          registry_office: string | null
+          state: string | null
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          city?: string | null
+          created_at?: string
+          id?: string
+          matricula_number?: string | null
+          owner_name?: string | null
+          property_address?: string | null
+          registry_office?: string | null
+          state?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          city?: string | null
+          created_at?: string
+          id?: string
+          matricula_number?: string | null
+          owner_name?: string | null
+          property_address?: string | null
+          registry_office?: string | null
+          state?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
