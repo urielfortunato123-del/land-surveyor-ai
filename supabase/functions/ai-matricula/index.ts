@@ -69,17 +69,28 @@ IMPORTANTE: Existem dois tipos principais de matrículas:
 2. MATRÍCULA URBANA (com dimensões simples):
    - Contém medidas de frente, fundos e lados
    - Formato: "medindo 7,50 metros de frente e de fundos, por 20,00 metros de cada lado"
-   - Confrontações simples: "pela frente com Rua X; lado direito com fulano; lado esquerdo com ciclano; fundos com beltrano"
    - NÃO contém azimutes ou rumos direcionais
+
+TERMOS COMUNS EM MATRÍCULAS URBANAS (preste atenção especial):
+- "pela frente com..." ou "de frente para..." = confrontação frontal
+- "pelos fundos com..." ou "nos fundos com..." = confrontação de fundos
+- "do lado direito com..." ou "à direita com..." = confrontação lado direito
+- "do lado esquerdo com..." ou "à esquerda com..." = confrontação lado esquerdo
+- "reflete a esquerda" ou "reflete à esquerda" = indica que a medida do lado esquerdo é igual à do lado oposto/mencionado
+- "reflete a direita" ou "reflete à direita" = indica que a medida do lado direito é igual à do lado oposto/mencionado
+- "de frente e de fundos" = ambas as medidas são iguais
+- "de cada lado" ou "de ambos os lados" = os dois lados têm a mesma medida
+- Medidas podem aparecer como: "7,50m", "7,50 metros", "sete metros e cinquenta centímetros"
 
 Extraia todos os dados da descrição do imóvel incluindo:
 - Número da matrícula
-- Nome do proprietário
+- Nome do proprietário (ATUAL, não os anteriores em histórico de vendas)
 - Cartório de registro
 - Cidade/Estado
 - Área total declarada (em m²)
 - Perímetro total (se declarado)
 - Tipo de imóvel: "rural" ou "urbano"
+- Endereço do imóvel (rua, número, bairro se disponível)
 
 Para IMÓVEIS RURAIS, extraia os segmentos com:
 - Rumos/azimutes de cada segmento
@@ -87,19 +98,20 @@ Para IMÓVEIS RURAIS, extraia os segmentos com:
 - Confrontantes de cada lado
 
 Para IMÓVEIS URBANOS, extraia as dimensões:
-- Frente (metros)
-- Fundos (metros)
-- Lado direito (metros)
-- Lado esquerdo (metros)
-- Confrontantes de cada lado
+- Frente (metros) - pode ser indicado como "de frente"
+- Fundos (metros) - pode ser indicado como "de fundos" ou "reflete a frente"
+- Lado direito (metros) - pode ser indicado como "reflete" se igual ao outro lado
+- Lado esquerdo (metros) - pode ser indicado como "reflete" se igual ao outro lado
+- Confrontantes de cada lado (frente, fundos, direito, esquerdo)
 
 Retorne os dados em formato JSON estruturado:
 {
   "matricula": "string",
-  "owner": "string",
+  "owner": "string (proprietário atual)",
   "registryOffice": "string",
   "city": "string",
   "state": "string",
+  "address": "string (endereço completo se disponível)",
   "propertyType": "rural" | "urbano",
   "areaDeclared": number | null,
   "perimeterDeclared": number | null,
@@ -116,10 +128,10 @@ Retorne os dados em formato JSON estruturado:
     "back": number | null,
     "rightSide": number | null,
     "leftSide": number | null,
-    "frontConfrontation": "string",
-    "backConfrontation": "string", 
-    "rightConfrontation": "string",
-    "leftConfrontation": "string"
+    "frontConfrontation": "string (com quem faz divisa pela frente)",
+    "backConfrontation": "string (com quem faz divisa pelos fundos)", 
+    "rightConfrontation": "string (com quem faz divisa à direita)",
+    "leftConfrontation": "string (com quem faz divisa à esquerda)"
   } | null
 }`
             },
