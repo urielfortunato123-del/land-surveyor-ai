@@ -21,11 +21,11 @@ import {
 import { motion } from 'framer-motion';
 import { MapContainer, TileLayer, Polygon, CircleMarker, Tooltip, Popup } from 'react-leaflet';
 import MapboxMap from '@/components/MapboxMap';
+import { MapErrorBoundary } from '@/components/MapErrorBoundary';
 import SegmentEditor from '@/components/SegmentEditor';
 import ExportDialog from '@/components/ExportDialog';
 import { mockParcelResult, mockSegments, generatePolygonCoordinates, localToLatLng, getQualityIndicator } from '@/lib/mockData';
 import { QualityLevel, Segment } from '@/types';
-import 'leaflet/dist/leaflet.css';
 import {
   Table,
   TableBody,
@@ -112,10 +112,13 @@ const ProjectResult = () => {
   // Generate polygon coordinates
   const localCoords = generatePolygonCoordinates(segments);
   const mapCoords = localToLatLng(localCoords);
-  const center: [number, number] = [
-    mapCoords.reduce((sum, c) => sum + c[0], 0) / mapCoords.length,
-    mapCoords.reduce((sum, c) => sum + c[1], 0) / mapCoords.length,
-  ];
+
+  const center: [number, number] = mapCoords.length
+    ? [
+        mapCoords.reduce((sum, c) => sum + c[0], 0) / mapCoords.length,
+        mapCoords.reduce((sum, c) => sum + c[1], 0) / mapCoords.length,
+      ]
+    : [-23.5505, -46.6333];
 
   // For Mapbox, we need lng,lat order
   const mapboxCoords: [number, number][] = mapCoords.map(([lat, lng]) => [lng, lat]);
@@ -233,75 +236,77 @@ const ProjectResult = () => {
                 </div>
               </div>
               <div className="flex-1 relative min-h-[400px]">
-                {useMapbox && mapboxToken ? (
-                  <MapboxMap
-                    accessToken={mapboxToken}
-                    coordinates={mapboxCoords}
-                    segments={segments.map(seg => ({
-                      index: seg.index,
-                      name: (seg as any).customName || `P${seg.index}`,
-                      distance: seg.distanceM,
-                      bearing: seg.bearingRaw,
-                      color: (seg as any).lineStyle?.color,
-                      lineWidth: (seg as any).lineStyle?.width,
-                      lineStyle: (seg as any).lineStyle?.style,
-                    }))}
-                    showLabels={showLabels}
-                  />
-                ) : (
-                  <MapContainer
-                    center={center}
-                    zoom={16}
-                    className="w-full h-full"
-                    style={{ background: 'hsl(var(--secondary))' }}
-                  >
-                    <TileLayer
-                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                <MapErrorBoundary>
+                  {useMapbox && mapboxToken ? (
+                    <MapboxMap
+                      accessToken={mapboxToken}
+                      coordinates={mapboxCoords}
+                      segments={segments.map(seg => ({
+                        index: seg.index,
+                        name: (seg as any).customName || `P${seg.index}`,
+                        distance: seg.distanceM,
+                        bearing: seg.bearingRaw,
+                        color: (seg as any).lineStyle?.color,
+                        lineWidth: (seg as any).lineStyle?.width,
+                        lineStyle: (seg as any).lineStyle?.style,
+                      }))}
+                      showLabels={showLabels}
                     />
-                    <Polygon
-                      positions={mapCoords as [number, number][]}
-                      pathOptions={{
-                        color: 'hsl(175, 60%, 40%)',
-                        fillColor: 'hsl(175, 60%, 40%)',
-                        fillOpacity: 0.2,
-                        weight: 3,
-                      }}
-                    />
-                    {showLabels && mapCoords.slice(0, -1).map((coord, i) => (
-                      <CircleMarker
-                        key={i}
-                        center={coord as [number, number]}
-                        radius={8}
+                  ) : (
+                    <MapContainer
+                      center={center}
+                      zoom={16}
+                      className="w-full h-full"
+                      style={{ background: 'hsl(var(--secondary))' }}
+                    >
+                      <TileLayer
+                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      />
+                      <Polygon
+                        positions={mapCoords as [number, number][]}
                         pathOptions={{
-                          color: 'hsl(215, 80%, 25%)',
-                          fillColor: 'hsl(215, 80%, 35%)',
-                          fillOpacity: 1,
-                          weight: 2,
+                          color: 'hsl(175, 60%, 40%)',
+                          fillColor: 'hsl(175, 60%, 40%)',
+                          fillOpacity: 0.2,
+                          weight: 3,
                         }}
-                      >
-                        <Tooltip permanent direction="top" offset={[0, -10]}>
-                          <span className="font-bold">{(segments[i] as any)?.customName || `P${i + 1}`}</span>
-                        </Tooltip>
-                        <Popup>
-                          <div className="text-sm">
-                            <strong>Ponto {i + 1}</strong>
-                            <br />
-                            {segments[i] && (
-                              <>
-                                <span className="text-muted-foreground">Rumo: </span>
-                                {segments[i].bearingRaw}
-                                <br />
-                                <span className="text-muted-foreground">Dist: </span>
-                                {segments[i].distanceM}m
-                              </>
-                            )}
-                          </div>
-                        </Popup>
-                      </CircleMarker>
-                    ))}
-                  </MapContainer>
-                )}
+                      />
+                      {showLabels && mapCoords.slice(0, -1).map((coord, i) => (
+                        <CircleMarker
+                          key={i}
+                          center={coord as [number, number]}
+                          radius={8}
+                          pathOptions={{
+                            color: 'hsl(215, 80%, 25%)',
+                            fillColor: 'hsl(215, 80%, 35%)',
+                            fillOpacity: 1,
+                            weight: 2,
+                          }}
+                        >
+                          <Tooltip permanent direction="top" offset={[0, -10]}>
+                            <span className="font-bold">{(segments[i] as any)?.customName || `P${i + 1}`}</span>
+                          </Tooltip>
+                          <Popup>
+                            <div className="text-sm">
+                              <strong>Ponto {i + 1}</strong>
+                              <br />
+                              {segments[i] && (
+                                <>
+                                  <span className="text-muted-foreground">Rumo: </span>
+                                  {segments[i].bearingRaw}
+                                  <br />
+                                  <span className="text-muted-foreground">Dist: </span>
+                                  {segments[i].distanceM}m
+                                </>
+                              )}
+                            </div>
+                          </Popup>
+                        </CircleMarker>
+                      ))}
+                    </MapContainer>
+                  )}
+                </MapErrorBoundary>
               </div>
             </div>
           </motion.div>
