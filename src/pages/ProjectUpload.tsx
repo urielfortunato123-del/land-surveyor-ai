@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,13 +16,15 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/hooks/use-toast';
-import { mockProcessingJob } from '@/lib/mockData';
+import { aiMatriculaApi } from '@/lib/api/ai-matricula';
+import { extractedDataStore } from '@/lib/extractedDataStore';
 
 interface UploadedFile {
   id: string;
   name: string;
   size: number;
   type: string;
+  file: File;
 }
 
 const ProjectUpload = () => {
@@ -46,6 +48,7 @@ const ProjectUpload = () => {
       name: file.name,
       size: file.size,
       type: file.type,
+      file: file,
     }));
     
     setFiles(prev => [...prev, ...newFiles]);
@@ -64,6 +67,7 @@ const ProjectUpload = () => {
       name: file.name,
       size: file.size,
       type: file.type,
+      file: file,
     }));
     
     setFiles(prev => [...prev, ...newFiles]);
@@ -77,6 +81,20 @@ const ProjectUpload = () => {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const addLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString('pt-BR');
+    setProcessingLogs(prev => [...prev, `[${timestamp}] ${message}`]);
   };
 
   const startProcessing = async () => {
@@ -93,26 +111,89 @@ const ProjectUpload = () => {
     setProcessingLogs([]);
     setProgress(0);
 
-    // Simulate processing with logs
-    const logs = mockProcessingJob.logs;
-    for (let i = 0; i < logs.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setProcessingLogs(prev => [...prev, logs[i]]);
-      setProgress(((i + 1) / logs.length) * 100);
+    const projectId = id === 'new' ? `proj-${Date.now()}` : id || '1';
+
+    try {
+      addLog('Iniciando processamento...');
+      setProgress(10);
+
+      // Convert first image/PDF to base64
+      const firstFile = files[0];
+      addLog(`Lendo arquivo: ${firstFile.name}...`);
+      
+      const base64Data = await fileToBase64(firstFile.file);
+      setProgress(25);
+      addLog('Arquivo convertido para processamento');
+
+      // Call AI extraction
+      addLog('Enviando para análise com IA (Gemini Pro Vision)...');
+      setProgress(35);
+
+      const response = await aiMatriculaApi.extractFromImage(base64Data);
+      setProgress(70);
+
+      if (!response.success || !response.data) {
+        throw new Error(response.error || 'Falha na extração de dados');
+      }
+
+      addLog('Dados extraídos com sucesso!');
+      
+      const extractedData = response.data;
+      
+      // Log what was found
+      if (extractedData.matricula) {
+        addLog(`Matrícula: ${extractedData.matricula}`);
+      }
+      if (extractedData.segments && extractedData.segments.length > 0) {
+        addLog(`${extractedData.segments.length} segmentos encontrados`);
+      } else {
+        addLog('⚠️ Nenhum segmento geométrico encontrado');
+        addLog('Esta matrícula pode ser de imóvel urbano sem memorial descritivo');
+      }
+      
+      setProgress(85);
+
+      // Store extracted data
+      extractedDataStore.save(projectId, {
+        title: projectName || `Matrícula ${extractedData.matricula || 'Nova'}`,
+        extractedData: {
+          matricula: extractedData.matricula,
+          owner: extractedData.owner,
+          registryOffice: extractedData.registryOffice,
+          city: extractedData.city,
+          state: extractedData.state,
+          areaDeclared: extractedData.areaDeclared,
+          perimeterDeclared: extractedData.perimeterDeclared,
+          segments: extractedData.segments || [],
+        },
+      });
+
+      addLog('Dados salvos no sistema');
+      setProgress(100);
+
+      toast({
+        title: 'Processamento concluído!',
+        description: extractedData.segments?.length 
+          ? `${extractedData.segments.length} segmentos extraídos`
+          : 'Dados básicos extraídos (sem segmentos geométricos)',
+      });
+
+      setTimeout(() => {
+        navigate(`/project/${projectId}/result`);
+      }, 1500);
+
+    } catch (error) {
+      console.error('Processing error:', error);
+      addLog(`❌ Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      
+      toast({
+        title: 'Erro no processamento',
+        description: error instanceof Error ? error.message : 'Tente novamente',
+        variant: 'destructive',
+      });
+      
+      setIsProcessing(false);
     }
-
-    // Complete processing
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setProgress(100);
-    
-    toast({
-      title: 'Processamento concluído!',
-      description: 'Redirecionando para os resultados...',
-    });
-
-    setTimeout(() => {
-      navigate('/project/1/result');
-    }, 1500);
   };
 
   return (
