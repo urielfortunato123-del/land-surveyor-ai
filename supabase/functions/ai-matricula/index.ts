@@ -58,26 +58,51 @@ serve(async (req) => {
             {
               role: 'system',
               content: `Você é um especialista em análise de matrículas de imóveis rurais e urbanos brasileiros.
+
+IMPORTANTE: Existem dois tipos principais de matrículas:
+
+1. MATRÍCULA RURAL (com memorial descritivo geométrico):
+   - Contém azimutes/rumos (ex: "N 45° 30' E", "azimute 125° 45' 30\"")
+   - Contém distâncias em metros para cada segmento
+   - Formato: "segue com azimute 112°30' por 48,72m até o ponto P2, confrontando com..."
+
+2. MATRÍCULA URBANA (com dimensões simples):
+   - Contém medidas de frente, fundos e lados
+   - Formato: "medindo 7,50 metros de frente e de fundos, por 20,00 metros de cada lado"
+   - Confrontações simples: "pela frente com Rua X; lado direito com fulano; lado esquerdo com ciclano; fundos com beltrano"
+   - NÃO contém azimutes ou rumos direcionais
+
 Extraia todos os dados da descrição do imóvel incluindo:
-- Rumos/azimutes de cada segmento (ex: "N 45° 30' E", "S 30° 15' W", "Az 125° 45' 30\"")
+- Número da matrícula
+- Nome do proprietário
+- Cartório de registro
+- Cidade/Estado
+- Área total declarada (em m²)
+- Perímetro total (se declarado)
+- Tipo de imóvel: "rural" ou "urbano"
+
+Para IMÓVEIS RURAIS, extraia os segmentos com:
+- Rumos/azimutes de cada segmento
 - Distâncias em metros de cada segmento
 - Confrontantes de cada lado
-- Área total declarada
-- Perímetro total
-- Nome do proprietário
-- Número da matrícula
-- Cartório
-- Cidade/Estado
 
-Retorne os dados em formato JSON estruturado com os campos:
+Para IMÓVEIS URBANOS, extraia as dimensões:
+- Frente (metros)
+- Fundos (metros)
+- Lado direito (metros)
+- Lado esquerdo (metros)
+- Confrontantes de cada lado
+
+Retorne os dados em formato JSON estruturado:
 {
   "matricula": "string",
   "owner": "string",
   "registryOffice": "string",
   "city": "string",
   "state": "string",
-  "areaDeclared": number,
-  "perimeterDeclared": number,
+  "propertyType": "rural" | "urbano",
+  "areaDeclared": number | null,
+  "perimeterDeclared": number | null,
   "segments": [
     {
       "index": number,
@@ -85,13 +110,23 @@ Retorne os dados em formato JSON estruturado com os campos:
       "distanceM": number,
       "confrontation": "string"
     }
-  ]
+  ],
+  "urbanDimensions": {
+    "front": number | null,
+    "back": number | null,
+    "rightSide": number | null,
+    "leftSide": number | null,
+    "frontConfrontation": "string",
+    "backConfrontation": "string", 
+    "rightConfrontation": "string",
+    "leftConfrontation": "string"
+  } | null
 }`
             },
             {
               role: 'user',
               content: [
-                { type: 'text', text: 'Analise esta imagem de matrícula e extraia todos os dados:' },
+                { type: 'text', text: 'Analise esta imagem de matrícula de imóvel brasileiro. Identifique se é uma matrícula RURAL (com azimutes e memorial descritivo) ou URBANA (com dimensões simples como frente, fundos, lados). Extraia todos os dados disponíveis:' },
                 { type: 'image_url', image_url: { url: imageBase64 } }
               ]
             }

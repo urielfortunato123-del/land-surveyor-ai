@@ -3,6 +3,18 @@
 
 import { Segment, ParcelResult, Warning } from '@/types';
 
+// Urban property dimensions (simple format: front x sides)
+export interface UrbanDimensions {
+  front: number | null;
+  back: number | null;
+  rightSide: number | null;
+  leftSide: number | null;
+  frontConfrontation: string;
+  backConfrontation: string;
+  rightConfrontation: string;
+  leftConfrontation: string;
+}
+
 export interface ExtractedMatriculaData {
   matricula?: string;
   owner?: string;
@@ -11,12 +23,16 @@ export interface ExtractedMatriculaData {
   state?: string;
   areaDeclared?: number;
   perimeterDeclared?: number;
+  propertyType?: 'rural' | 'urbano';
+  // Rural properties: full geometric description
   segments: Array<{
     index: number;
     bearingRaw: string;
     distanceM: number;
     confrontation?: string;
   }>;
+  // Urban properties: simple dimensions
+  urbanDimensions?: UrbanDimensions | null;
 }
 
 interface ProjectData {
@@ -51,7 +67,14 @@ export const extractedDataStore = {
   },
 
   // Convert extracted segments to the app's Segment type
+  // For urban properties, generate segments from dimensions
   toSegments(data: ExtractedMatriculaData): Segment[] {
+    // If it's an urban property with dimensions, generate rectangular segments
+    if (data.propertyType === 'urbano' && data.urbanDimensions) {
+      return this.urbanDimensionsToSegments(data.urbanDimensions);
+    }
+    
+    // Otherwise, use the extracted segments (rural properties)
     return data.segments.map((seg, i) => {
       // Parse bearing to azimuth (simplified - proper parsing needed)
       const azimuth = parseBearingToAzimuth(seg.bearingRaw);
@@ -70,6 +93,62 @@ export const extractedDataStore = {
         deltaY,
       };
     });
+  },
+
+  // Convert urban dimensions to segments (rectangular polygon)
+  urbanDimensionsToSegments(dimensions: UrbanDimensions): Segment[] {
+    const front = dimensions.front || 0;
+    const back = dimensions.back || front;
+    const right = dimensions.rightSide || 0;
+    const left = dimensions.leftSide || right;
+
+    // Create a rectangular polygon: front -> right -> back -> left
+    return [
+      {
+        index: 1,
+        bearingRaw: 'Frente',
+        bearingAzimuth: 90, // East
+        distanceM: front,
+        neighbor: dimensions.frontConfrontation || '',
+        sourceText: `Frente: ${front}m`,
+        confidence: 0.95,
+        deltaX: front,
+        deltaY: 0,
+      },
+      {
+        index: 2,
+        bearingRaw: 'Lado Direito',
+        bearingAzimuth: 0, // North
+        distanceM: right,
+        neighbor: dimensions.rightConfrontation || '',
+        sourceText: `Lado Direito: ${right}m`,
+        confidence: 0.95,
+        deltaX: 0,
+        deltaY: right,
+      },
+      {
+        index: 3,
+        bearingRaw: 'Fundos',
+        bearingAzimuth: 270, // West
+        distanceM: back,
+        neighbor: dimensions.backConfrontation || '',
+        sourceText: `Fundos: ${back}m`,
+        confidence: 0.95,
+        deltaX: -back,
+        deltaY: 0,
+      },
+      {
+        index: 4,
+        bearingRaw: 'Lado Esquerdo',
+        bearingAzimuth: 180, // South
+        distanceM: left,
+        neighbor: dimensions.leftConfrontation || '',
+        sourceText: `Lado Esquerdo: ${left}m`,
+        confidence: 0.95,
+        deltaX: 0,
+        deltaY: -left,
+      },
+    ];
   },
 
   // Generate a ParcelResult from extracted data
