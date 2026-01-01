@@ -5,3 +5,6 @@ verify_jwt = true
 
 [functions.generate-kml]
 verify_jwt = true
+
+[functions.ai-matricula]
+verify_jwt = false
