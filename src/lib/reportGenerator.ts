@@ -420,7 +420,7 @@ export const generateTechnicalReportHTML = (data: TechnicalReportData): string =
 
 export const downloadReportAsPDF = async (html: string, filename: string) => {
   // Create a new window with the HTML content
-  const printWindow = window.open('', '_blank');
+  const printWindow = window.open('', '_blank', 'width=800,height=600');
   if (!printWindow) {
     throw new Error('Popup blocked. Please allow popups for this site.');
   }
@@ -428,20 +428,24 @@ export const downloadReportAsPDF = async (html: string, filename: string) => {
   printWindow.document.write(html);
   printWindow.document.close();
   
-  // Wait for content to load then print
-  printWindow.onload = () => {
+  // Use setTimeout to ensure content is rendered before printing
+  setTimeout(() => {
+    printWindow.focus();
     printWindow.print();
-  };
+  }, 500);
 };
 
 export const downloadReportAsHTML = (html: string, filename: string) => {
-  const blob = new Blob([html], { type: 'text/html' });
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
+  a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 100);
 };
