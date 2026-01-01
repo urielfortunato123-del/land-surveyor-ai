@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +16,8 @@ import {
   ChevronDown,
   Settings,
   Eye,
-  EyeOff
+  EyeOff,
+  Info
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { MapContainer, TileLayer, Polygon, CircleMarker, Tooltip, Popup } from 'react-leaflet';
@@ -24,8 +25,9 @@ import MapboxMap from '@/components/MapboxMap';
 import { MapErrorBoundary } from '@/components/MapErrorBoundary';
 import SegmentEditor from '@/components/SegmentEditor';
 import ExportDialog from '@/components/ExportDialog';
-import { mockParcelResult, mockSegments, generatePolygonCoordinates, localToLatLng, getQualityIndicator } from '@/lib/mockData';
-import { QualityLevel, Segment } from '@/types';
+import { generatePolygonCoordinates, localToLatLng, getQualityIndicator } from '@/lib/mockData';
+import { extractedDataStore } from '@/lib/extractedDataStore';
+import { QualityLevel, Segment, ParcelResult } from '@/types';
 import {
   Table,
   TableBody,
@@ -53,6 +55,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert";
 
 const QualityIndicatorComponent = ({ level, message }: { level: QualityLevel; message: string }) => {
   const config = {
@@ -99,9 +106,29 @@ const QualityIndicatorComponent = ({ level, message }: { level: QualityLevel; me
 const ProjectResult = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const result = mockParcelResult;
-  const [segments, setSegments] = useState<Segment[]>(mockSegments);
-  const quality = getQualityIndicator(result);
+  
+  // Get real extracted data or null
+  const extractedData = useMemo(() => {
+    return id ? extractedDataStore.getExtractedData(id) : null;
+  }, [id]);
+
+  // Generate result from extracted data or show empty state
+  const result: ParcelResult | null = useMemo(() => {
+    if (!extractedData || !extractedData.segments?.length) {
+      return null;
+    }
+    return extractedDataStore.toParcelResult(id || '1', extractedData);
+  }, [extractedData, id]);
+
+  const [segments, setSegments] = useState<Segment[]>([]);
+  
+  useEffect(() => {
+    if (result?.segments) {
+      setSegments(result.segments);
+    }
+  }, [result]);
+
+  const quality = result ? getQualityIndicator(result) : null;
   
   // Mapbox token state
   const [mapboxToken, setMapboxToken] = useState('');
@@ -130,6 +157,74 @@ const ProjectResult = () => {
     }
   };
 
+  // If no geometric data, show info message
+  if (!result || !extractedData?.segments?.length) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="sticky top-0 z-[1000] glass-card border-b">
+          <div className="container mx-auto px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')}>
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+              <Link to="/" className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                  <MapPin className="w-4 h-4 text-primary-foreground" />
+                </div>
+                <span className="font-display font-bold text-lg text-foreground">GeoMatrícula</span>
+              </Link>
+            </div>
+          </div>
+        </header>
+
+        <main className="container mx-auto px-6 py-8 max-w-2xl">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <Alert className="mb-6">
+              <Info className="h-4 w-4" />
+              <AlertTitle>Matrícula sem dados geométricos</AlertTitle>
+              <AlertDescription>
+                {extractedData ? (
+                  <>
+                    <p className="mb-4">A matrícula foi processada, mas não foram encontrados dados de memorial descritivo (rumos, azimutes e distâncias).</p>
+                    
+                    {extractedData.matricula && (
+                      <div className="glass-card rounded-lg p-4 mb-4">
+                        <h3 className="font-semibold mb-2">Dados extraídos:</h3>
+                        <dl className="space-y-1 text-sm">
+                          <div className="flex"><dt className="font-medium w-32">Matrícula:</dt><dd>{extractedData.matricula}</dd></div>
+                          {extractedData.owner && <div className="flex"><dt className="font-medium w-32">Proprietário:</dt><dd>{extractedData.owner}</dd></div>}
+                          {extractedData.registryOffice && <div className="flex"><dt className="font-medium w-32">Cartório:</dt><dd>{extractedData.registryOffice}</dd></div>}
+                          {extractedData.city && <div className="flex"><dt className="font-medium w-32">Cidade:</dt><dd>{extractedData.city}{extractedData.state ? ` - ${extractedData.state}` : ''}</dd></div>}
+                        </dl>
+                      </div>
+                    )}
+                    
+                    <p className="text-muted-foreground">
+                      Isso geralmente acontece com matrículas de <strong>imóveis urbanos</strong>, que contém apenas histórico de transações sem descrição geométrica.
+                    </p>
+                  </>
+                ) : (
+                  <p>Nenhum dado foi processado. Por favor, faça o upload de uma matrícula primeiro.</p>
+                )}
+              </AlertDescription>
+            </Alert>
+
+            <Button onClick={() => navigate('/project/new')}>
+              Processar nova matrícula
+            </Button>
+          </motion.div>
+        </main>
+      </div>
+    );
+  }
+
+  const projectTitle = extractedData.matricula 
+    ? `Matrícula ${extractedData.matricula}${extractedData.city ? ` - ${extractedData.city}` : ''}`
+    : 'Projeto';
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -146,12 +241,12 @@ const ProjectResult = () => {
               <span className="font-display font-bold text-lg text-foreground">GeoMatrícula</span>
             </Link>
             <div className="h-6 w-px bg-border mx-2" />
-            <h1 className="font-medium text-foreground">Matrícula 12.345 - Fazenda São João</h1>
+            <h1 className="font-medium text-foreground">{projectTitle}</h1>
           </div>
           
           <div className="flex items-center gap-3">
-            <Badge variant={quality.level === 'green' ? 'ready' : quality.level === 'yellow' ? 'warning' : 'error'}>
-              {quality.level === 'green' ? 'Pronto' : quality.level === 'yellow' ? 'Atenção' : 'Revisar'}
+            <Badge variant={quality?.level === 'green' ? 'ready' : quality?.level === 'yellow' ? 'warning' : 'error'}>
+              {quality?.level === 'green' ? 'Pronto' : quality?.level === 'yellow' ? 'Atenção' : 'Revisar'}
             </Badge>
             <ExportDialog result={result} segments={segments} />
           </div>
