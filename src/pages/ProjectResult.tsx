@@ -17,8 +17,11 @@ import {
   Settings,
   Eye,
   EyeOff,
-  Info
+  Info,
+  Navigation,
+  Loader2
 } from 'lucide-react';
+import { useGeocoding } from '@/hooks/useGeocoding';
 import { motion } from 'framer-motion';
 import { MapContainer, TileLayer, Polygon, CircleMarker, Tooltip, Popup } from 'react-leaflet';
 import MapboxMap from '@/components/MapboxMap';
@@ -135,6 +138,11 @@ const ProjectResult = () => {
   const [showTokenInput, setShowTokenInput] = useState(true);
   const [useMapbox, setUseMapbox] = useState(false);
   const [showLabels, setShowLabels] = useState(true);
+  
+  // Geocoding state for "Ver no Mapa"
+  const [showLocationMap, setShowLocationMap] = useState(false);
+  const [geocodedLocation, setGeocodedLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const { geocodeAddress, isLoading: isGeocoding } = useGeocoding();
 
   // Generate polygon coordinates
   const localCoords = generatePolygonCoordinates(segments);
@@ -154,6 +162,36 @@ const ProjectResult = () => {
     if (mapboxToken.startsWith('pk.')) {
       setUseMapbox(true);
       setShowTokenInput(false);
+    }
+  };
+
+  // Handle "Ver no Mapa" - geocode address and show map at location
+  const handleViewOnMap = async () => {
+    if (!extractedData) return;
+    
+    // Build address string from extracted data
+    const addressParts = [
+      extractedData.city,
+      extractedData.state,
+      'Brasil'
+    ].filter(Boolean);
+    
+    const address = addressParts.join(', ');
+    
+    if (address === 'Brasil') {
+      // No address data available
+      return;
+    }
+    
+    const location = await geocodeAddress(address);
+    if (location) {
+      setGeocodedLocation({ lat: location.lat, lng: location.lng });
+      setShowLocationMap(true);
+      // Auto-apply mapbox if token exists
+      if (mapboxToken.startsWith('pk.')) {
+        setUseMapbox(true);
+        setShowTokenInput(false);
+      }
     }
   };
 
@@ -212,9 +250,85 @@ const ProjectResult = () => {
               </AlertDescription>
             </Alert>
 
-            <Button onClick={() => navigate('/project/new')}>
-              Processar nova matrícula
-            </Button>
+            <div className="flex gap-3">
+              <Button onClick={() => navigate('/project/new')}>
+                Processar nova matrícula
+              </Button>
+              
+              {extractedData?.city && (
+                <Button 
+                  variant="outline" 
+                  onClick={handleViewOnMap}
+                  disabled={isGeocoding}
+                >
+                  {isGeocoding ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Navigation className="w-4 h-4 mr-2" />
+                  )}
+                  Ver no Mapa
+                </Button>
+              )}
+            </div>
+            
+            {/* Location Map Dialog for properties without geometric data */}
+            {showLocationMap && geocodedLocation && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-6"
+              >
+                <div className="glass-card rounded-xl overflow-hidden">
+                  <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-accent" />
+                      <span className="font-medium">Localização: {extractedData?.city}{extractedData?.state ? `, ${extractedData.state}` : ''}</span>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setShowLocationMap(false)}>
+                      Fechar
+                    </Button>
+                  </div>
+                  <div className="h-[400px]">
+                    <MapErrorBoundary>
+                      {useMapbox && mapboxToken ? (
+                        <MapboxMap
+                          accessToken={mapboxToken}
+                          coordinates={[]}
+                          segments={[]}
+                          center={[geocodedLocation.lng, geocodedLocation.lat]}
+                          zoom={15}
+                        />
+                      ) : (
+                        <MapContainer
+                          center={[geocodedLocation.lat, geocodedLocation.lng]}
+                          zoom={15}
+                          className="w-full h-full"
+                        >
+                          <TileLayer
+                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                          />
+                          <CircleMarker
+                            center={[geocodedLocation.lat, geocodedLocation.lng]}
+                            radius={12}
+                            pathOptions={{
+                              color: 'hsl(175, 60%, 40%)',
+                              fillColor: 'hsl(175, 60%, 40%)',
+                              fillOpacity: 0.8,
+                            }}
+                          >
+                            <Popup>
+                              <strong>{extractedData?.city}</strong>
+                              {extractedData?.state && <><br />{extractedData.state}</>}
+                            </Popup>
+                          </CircleMarker>
+                        </MapContainer>
+                      )}
+                    </MapErrorBoundary>
+                  </div>
+                </div>
+              </motion.div>
+            )}
           </motion.div>
         </main>
       </div>
@@ -245,6 +359,21 @@ const ProjectResult = () => {
           </div>
           
           <div className="flex items-center gap-3">
+            {extractedData?.city && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handleViewOnMap}
+                disabled={isGeocoding}
+              >
+                {isGeocoding ? (
+                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                ) : (
+                  <Navigation className="w-4 h-4 mr-1" />
+                )}
+                Ver no Mapa
+              </Button>
+            )}
             <Badge variant={quality?.level === 'green' ? 'ready' : quality?.level === 'yellow' ? 'warning' : 'error'}>
               {quality?.level === 'green' ? 'Pronto' : quality?.level === 'yellow' ? 'Atenção' : 'Revisar'}
             </Badge>
@@ -345,11 +474,12 @@ const ProjectResult = () => {
                         lineWidth: (seg as any).lineStyle?.width,
                         lineStyle: (seg as any).lineStyle?.style,
                       }))}
+                      center={geocodedLocation ? [geocodedLocation.lng, geocodedLocation.lat] : undefined}
                       showLabels={showLabels}
                     />
                   ) : (
                     <MapContainer
-                      center={center}
+                      center={geocodedLocation ? [geocodedLocation.lat, geocodedLocation.lng] : center}
                       zoom={16}
                       className="w-full h-full"
                       style={{ background: 'hsl(var(--secondary))' }}
