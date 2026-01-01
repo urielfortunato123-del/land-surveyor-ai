@@ -116,10 +116,22 @@ const ProjectResult = () => {
   }, [id]);
 
   // Generate result from extracted data or show empty state
+  // For urban properties, check if we have dimensions instead of segments
   const result: ParcelResult | null = useMemo(() => {
-    if (!extractedData || !extractedData.segments?.length) {
+    if (!extractedData) return null;
+    
+    // Check if it's an urban property with dimensions
+    const hasUrbanDimensions = extractedData.propertyType === 'urbano' && 
+      extractedData.urbanDimensions && 
+      (extractedData.urbanDimensions.front || extractedData.urbanDimensions.rightSide);
+    
+    // Check if it has rural segments
+    const hasRuralSegments = extractedData.segments?.length > 0;
+    
+    if (!hasUrbanDimensions && !hasRuralSegments) {
       return null;
     }
+    
     return extractedDataStore.toParcelResult(id || '1', extractedData);
   }, [extractedData, id]);
 
@@ -195,8 +207,11 @@ const ProjectResult = () => {
     }
   };
 
-  // If no geometric data, show info message
-  if (!result || !extractedData?.segments?.length) {
+  // Check if we have any geometric data (rural segments or urban dimensions)
+  const hasGeometricData = result !== null;
+
+  // If no geometric data, show info message with extracted property data
+  if (!hasGeometricData) {
     return (
       <div className="min-h-screen bg-background">
         <header className="sticky top-0 z-[1000] glass-card border-b">
@@ -222,26 +237,31 @@ const ProjectResult = () => {
           >
             <Alert className="mb-6">
               <Info className="h-4 w-4" />
-              <AlertTitle>Matrícula sem dados geométricos</AlertTitle>
+              <AlertTitle>Matrícula sem dados geométricos mensuráveis</AlertTitle>
               <AlertDescription>
                 {extractedData ? (
                   <>
-                    <p className="mb-4">A matrícula foi processada, mas não foram encontrados dados de memorial descritivo (rumos, azimutes e distâncias).</p>
+                    <p className="mb-4">
+                      A matrícula foi processada como <strong>{extractedData.propertyType === 'urbano' ? 'imóvel urbano' : 'imóvel'}</strong>, 
+                      mas não foram encontrados dados suficientes para desenhar o polígono (rumos, azimutes, distâncias ou dimensões).
+                    </p>
                     
                     {extractedData.matricula && (
                       <div className="glass-card rounded-lg p-4 mb-4">
                         <h3 className="font-semibold mb-2">Dados extraídos:</h3>
                         <dl className="space-y-1 text-sm">
                           <div className="flex"><dt className="font-medium w-32">Matrícula:</dt><dd>{extractedData.matricula}</dd></div>
+                          {extractedData.propertyType && <div className="flex"><dt className="font-medium w-32">Tipo:</dt><dd className="capitalize">{extractedData.propertyType}</dd></div>}
                           {extractedData.owner && <div className="flex"><dt className="font-medium w-32">Proprietário:</dt><dd>{extractedData.owner}</dd></div>}
                           {extractedData.registryOffice && <div className="flex"><dt className="font-medium w-32">Cartório:</dt><dd>{extractedData.registryOffice}</dd></div>}
                           {extractedData.city && <div className="flex"><dt className="font-medium w-32">Cidade:</dt><dd>{extractedData.city}{extractedData.state ? ` - ${extractedData.state}` : ''}</dd></div>}
+                          {extractedData.areaDeclared && <div className="flex"><dt className="font-medium w-32">Área:</dt><dd>{extractedData.areaDeclared.toLocaleString('pt-BR')} m²</dd></div>}
                         </dl>
                       </div>
                     )}
                     
                     <p className="text-muted-foreground">
-                      Isso geralmente acontece com matrículas de <strong>imóveis urbanos</strong>, que contém apenas histórico de transações sem descrição geométrica.
+                      Isso geralmente acontece com matrículas que contêm apenas histórico de transações sem descrição geométrica detalhada.
                     </p>
                   </>
                 ) : (
