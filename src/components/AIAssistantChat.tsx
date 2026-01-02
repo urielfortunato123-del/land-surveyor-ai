@@ -3,16 +3,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MessageCircle, Send, X, Loader2, Bot, User } from 'lucide-react';
+import { MessageCircle, Send, X, Loader2, Bot, User, Paperclip, FileText, Image as ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import { Segment } from '@/types';
+import { toast } from 'sonner';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  attachment?: {
+    name: string;
+    type: string;
+    url?: string;
+  };
 }
 
 interface AIAssistantChatProps {
@@ -42,11 +48,10 @@ export function AIAssistantChat({
       role: 'assistant',
       content: `Olá! Sou seu assistente de georreferenciamento. Vi que há um erro de fechamento de ${propertyData.closureError?.toFixed(2) || 'N/A'}m no polígono. 
 
-Você pode me pedir para:
-• Corrigir um rumo específico (ex: "O rumo do P3 deveria ser 45°")
-• Ajustar uma distância (ex: "A distância do segmento 2 é 25m")
-• Recalcular o polígono
-• Explicar o que parece errado
+Você pode:
+• Enviar fotos/PDFs de matrículas para eu analisar
+• Pedir correções de rumos ou distâncias
+• Solicitar que eu recalcule o polígono
 
 Como posso ajudar?`,
       timestamp: new Date()
@@ -54,13 +59,126 @@ Como posso ajudar?`,
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Arquivo muito grande. Máximo 10MB.');
+      return;
+    }
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 
+      'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Tipo de arquivo não suportado. Use imagens, PDF ou Word.');
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      // Convert file to base64
+      const base64 = await fileToBase64(file);
+      
+      // Add user message with attachment
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: `Analise este arquivo: ${file.name}`,
+        timestamp: new Date(),
+        attachment: {
+          name: file.name,
+          type: file.type,
+        }
+      };
+
+      setMessages(prev => [...prev, userMessage]);
+      setIsLoading(true);
+
+      // Send to AI for analysis
+      const { data, error } = await supabase.functions.invoke('ai-matricula-chat', {
+        body: {
+          message: `Analise este documento de matrícula que estou enviando. O arquivo se chama "${file.name}". Extraia os dados de rumos/distâncias e compare com os segmentos atuais. Se encontrar diferenças, corrija automaticamente.`,
+          segments,
+          propertyData,
+          conversationHistory: messages.map(m => ({
+            role: m.role,
+            content: m.content
+          })),
+          fileAttachment: {
+            name: file.name,
+            type: file.type,
+            base64: base64
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: data.response,
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+
+      // Apply segment updates if any
+      if (data.updatedSegments) {
+        onSegmentsUpdate(data.updatedSegments);
+        toast.success('Segmentos atualizados com base na análise');
+      }
+
+      // Apply property updates if any
+      if (data.updatedPropertyData && onPropertyUpdate) {
+        onPropertyUpdate(data.updatedPropertyData);
+      }
+
+    } catch (error) {
+      console.error('Error processing file:', error);
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: 'Desculpe, não consegui processar o arquivo. Tente enviar uma imagem mais clara ou descreva o conteúdo manualmente.',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove the data:mime/type;base64, prefix
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = error => reject(error);
+    });
+  };
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
@@ -124,8 +242,22 @@ Como posso ajudar?`,
     }
   };
 
+  const getFileIcon = (type: string) => {
+    if (type.startsWith('image/')) return <ImageIcon className="h-4 w-4" />;
+    return <FileText className="h-4 w-4" />;
+  };
+
   return (
     <>
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,.pdf,.doc,.docx"
+        onChange={handleFileSelect}
+        className="hidden"
+      />
+
       {/* Floating Button */}
       <AnimatePresence>
         {!isOpen && (
@@ -198,6 +330,14 @@ Como posso ajudar?`,
                               : 'bg-muted'
                           }`}
                         >
+                          {message.attachment && (
+                            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-current/20">
+                              {getFileIcon(message.attachment.type)}
+                              <span className="text-xs truncate max-w-[200px]">
+                                {message.attachment.name}
+                              </span>
+                            </div>
+                          )}
                           <p className="whitespace-pre-wrap">{message.content}</p>
                         </div>
                         {message.role === 'user' && (
@@ -208,7 +348,7 @@ Como posso ajudar?`,
                       </motion.div>
                     ))}
                     
-                    {isLoading && (
+                    {(isLoading || isUploading) && (
                       <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -217,8 +357,11 @@ Como posso ajudar?`,
                         <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                           <Bot className="h-4 w-4 text-primary" />
                         </div>
-                        <div className="bg-muted rounded-lg px-4 py-3">
+                        <div className="bg-muted rounded-lg px-4 py-3 flex items-center gap-2">
                           <Loader2 className="h-4 w-4 animate-spin" />
+                          <span className="text-sm text-muted-foreground">
+                            {isUploading ? 'Analisando arquivo...' : 'Pensando...'}
+                          </span>
                         </div>
                       </motion.div>
                     )}
@@ -234,17 +377,27 @@ Como posso ajudar?`,
                     }}
                     className="flex gap-2"
                   >
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isLoading || isUploading}
+                      title="Anexar arquivo"
+                    >
+                      <Paperclip className="h-4 w-4" />
+                    </Button>
                     <Input
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
-                      placeholder="Digite sua mensagem..."
-                      disabled={isLoading}
+                      placeholder="Digite ou anexe arquivo..."
+                      disabled={isLoading || isUploading}
                       className="flex-1"
                     />
                     <Button 
                       type="submit" 
                       size="icon" 
-                      disabled={isLoading || !input.trim()}
+                      disabled={isLoading || isUploading || !input.trim()}
                     >
                       <Send className="h-4 w-4" />
                     </Button>
