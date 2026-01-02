@@ -127,20 +127,43 @@ export function getUTMZoneFromState(state: string): number {
  * Convert UTM coordinates from extracted data to lat/lng
  */
 export function convertExtractedUTMToLatLng(
-  utmData: { zone?: number; hemisphere?: 'N' | 'S'; firstVertex?: { n: number; e: number } } | null,
+  utmData: { zone?: number | null; hemisphere?: 'N' | 'S'; firstVertex?: { n: number; e: number } | null } | null,
   fallbackState?: string
 ): LatLng | null {
   if (!utmData?.firstVertex) {
+    console.log('UTM: No firstVertex data');
+    return null;
+  }
+  
+  const { n, e } = utmData.firstVertex;
+  
+  // Validate UTM coordinates are reasonable for Brazil
+  // Easting should be between 100,000 and 900,000
+  // Northing in Southern Hemisphere should be between 7,000,000 and 10,000,000
+  if (e < 100000 || e > 900000 || n < 1000000 || n > 10000000) {
+    console.log('UTM: Invalid coordinates range', { e, n });
     return null;
   }
   
   const zone = utmData.zone || (fallbackState ? getUTMZoneFromState(fallbackState) : 23);
   const hemisphere = utmData.hemisphere || 'S'; // Brazil is in the Southern Hemisphere
   
-  return utmToLatLng({
-    easting: utmData.firstVertex.e,
-    northing: utmData.firstVertex.n,
+  console.log('UTM: Converting', { e, n, zone, hemisphere });
+  
+  const result = utmToLatLng({
+    easting: e,
+    northing: n,
     zone,
     hemisphere,
   });
+  
+  // Validate result is within Brazil bounds approximately
+  // Lat: -33.75 to 5.27, Lng: -73.99 to -28.84
+  if (result.lat < -35 || result.lat > 6 || result.lng < -75 || result.lng > -28) {
+    console.log('UTM: Result outside Brazil bounds', result);
+    return null;
+  }
+  
+  console.log('UTM: Conversion result', result);
+  return result;
 }

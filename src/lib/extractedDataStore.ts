@@ -101,13 +101,12 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
 function buildAddressForGeocoding(data: ExtractedMatriculaData): string {
   const parts: string[] = [];
   
-  // Try to include as much detail as possible
-  // Road/highway info is very useful (e.g., "Rodovia SP 261 km 55")
+  // For rural properties, road/highway info is very useful
   if (data.road) {
     parts.push(data.road);
   }
   
-  // Property address
+  // Property address (street, number)
   if (data.propertyAddress) {
     parts.push(data.propertyAddress);
   }
@@ -117,19 +116,23 @@ function buildAddressForGeocoding(data: ExtractedMatriculaData): string {
     parts.push(data.neighborhood);
   }
   
-  // City and state are essential
+  // City is essential - add state abbreviation
   if (data.city) {
-    parts.push(data.city);
-  }
-  
-  if (data.state) {
+    if (data.state) {
+      parts.push(`${data.city}, ${data.state}`);
+    } else {
+      parts.push(data.city);
+    }
+  } else if (data.state) {
     parts.push(data.state);
   }
   
   // Always include Brazil for better results
   parts.push('Brasil');
   
-  return parts.join(', ');
+  const address = parts.join(', ');
+  console.log('Geocoding: Built address:', address);
+  return address;
 }
 
 export const extractedDataStore = {
