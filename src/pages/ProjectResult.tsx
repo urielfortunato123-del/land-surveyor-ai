@@ -16,7 +16,8 @@ import {
   EyeOff,
   Info,
   Navigation,
-  Loader2
+  Loader2,
+  Search
 } from 'lucide-react';
 import { useGeocoding } from '@/hooks/useGeocoding';
 import { motion } from 'framer-motion';
@@ -24,6 +25,7 @@ import OSMMap from '@/components/OSMMap';
 import { MapErrorBoundary } from '@/components/MapErrorBoundary';
 import SegmentEditor from '@/components/SegmentEditor';
 import ExportDialog from '@/components/ExportDialog';
+import LocationSearch from '@/components/LocationSearch';
 import { generatePolygonCoordinates, localToLatLng, getQualityIndicator } from '@/lib/mockData';
 import { extractedDataStore } from '@/lib/extractedDataStore';
 import { QualityLevel, Segment, ParcelResult } from '@/types';
@@ -153,17 +155,33 @@ const ProjectResult = () => {
   const [geocodedLocation, setGeocodedLocation] = useState<{ lat: number; lng: number } | null>(null);
   const { geocodeAddress, isLoading: isGeocoding } = useGeocoding();
 
-  // Use geoLocation from UTM if available
-  const propertyCenter: [number, number] = geoLocation 
-    ? [geoLocation.lat, geoLocation.lng]
+  // Manual location override state
+  const [manualLocation, setManualLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [manualLocationAddress, setManualLocationAddress] = useState<string>('');
+
+  // Determine the active location (priority: manual > geocoded > geoLocation from UTM)
+  const activeLocation = manualLocation || geocodedLocation || geoLocation;
+
+  // Build address string for display
+  const currentAddressDisplay = manualLocationAddress || 
+    (extractedData ? [
+      extractedData.propertyAddress,
+      extractedData.neighborhood,
+      extractedData.city,
+      extractedData.state
+    ].filter(Boolean).join(', ') : '');
+
+  // Use active location or default
+  const propertyCenter: [number, number] = activeLocation 
+    ? [activeLocation.lat, activeLocation.lng]
     : [-23.5505, -46.6333]; // Default São Paulo
 
   // Generate polygon coordinates relative to the property center
   const localCoords = generatePolygonCoordinates(segments);
-  // Offset the polygon to the real location if we have UTM coordinates
-  const mapCoords = localToLatLng(localCoords, geoLocation ? propertyCenter : undefined);
+  // Offset the polygon to the real location if we have a location
+  const mapCoords = localToLatLng(localCoords, activeLocation ? propertyCenter : undefined);
   
-  const center: [number, number] = geoLocation 
+  const center: [number, number] = activeLocation 
     ? propertyCenter 
     : (mapCoords.length
       ? [
@@ -171,6 +189,12 @@ const ProjectResult = () => {
           mapCoords.reduce((sum, c) => sum + c[1], 0) / mapCoords.length,
         ]
       : [-23.5505, -46.6333]);
+  
+  // Handle manual location change
+  const handleLocationChange = (location: { lat: number; lng: number }, address: string) => {
+    setManualLocation(location);
+    setManualLocationAddress(address);
+  };
 
   // Handle "Ver no Mapa" - geocode address and show map at location
   const handleViewOnMap = async () => {
@@ -400,11 +424,18 @@ const ProjectResult = () => {
                       distance: seg.distanceM,
                       bearing: seg.bearingRaw,
                     }))}
-                    center={geocodedLocation ? [geocodedLocation.lat, geocodedLocation.lng] : center}
+                    center={center}
                     showLabels={showLabels}
                   />
                 </MapErrorBoundary>
               </div>
+              
+              {/* Location Search */}
+              <LocationSearch
+                currentLocation={activeLocation}
+                currentAddress={currentAddressDisplay}
+                onLocationChange={handleLocationChange}
+              />
             </div>
           </motion.div>
 
