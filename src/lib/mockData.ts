@@ -121,11 +121,15 @@ export const generatePolygonCoordinates = (segments: Segment[]): [number, number
   return coords;
 };
 
-// Convert local coordinates to approximate lat/lng (for demo, centered on São Paulo)
-export const localToLatLng = (coords: [number, number][]): [number, number][] => {
-  const baseLat = -23.5505;
-  const baseLng = -46.6333;
-  const scale = 0.00001; // Approximate meters to degrees
+// Convert local coordinates to approximate lat/lng
+// If a center is provided (from UTM conversion), use it; otherwise default to São Paulo
+export const localToLatLng = (
+  coords: [number, number][],
+  center?: [number, number]
+): [number, number][] => {
+  const baseLat = center?.[0] ?? -23.5505;
+  const baseLng = center?.[1] ?? -46.6333;
+  const scale = 0.00001; // Approximate meters to degrees (1m ≈ 0.00001°)
   
   return coords.map(([x, y]) => [
     baseLat + y * scale,

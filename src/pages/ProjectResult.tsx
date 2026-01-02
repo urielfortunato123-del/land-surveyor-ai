@@ -111,6 +111,11 @@ const ProjectResult = () => {
     return id ? extractedDataStore.getExtractedData(id) : null;
   }, [id]);
 
+  // Get georeferenced location from UTM coordinates
+  const geoLocation = useMemo(() => {
+    return id ? extractedDataStore.getGeoLocation(id) : null;
+  }, [id]);
+
   // Generate result from extracted data or show empty state
   // For urban properties, check if we have dimensions instead of segments
   const result: ParcelResult | null = useMemo(() => {
@@ -148,16 +153,24 @@ const ProjectResult = () => {
   const [geocodedLocation, setGeocodedLocation] = useState<{ lat: number; lng: number } | null>(null);
   const { geocodeAddress, isLoading: isGeocoding } = useGeocoding();
 
-  // Generate polygon coordinates
-  const localCoords = generatePolygonCoordinates(segments);
-  const mapCoords = localToLatLng(localCoords);
+  // Use geoLocation from UTM if available
+  const propertyCenter: [number, number] = geoLocation 
+    ? [geoLocation.lat, geoLocation.lng]
+    : [-23.5505, -46.6333]; // Default São Paulo
 
-  const center: [number, number] = mapCoords.length
-    ? [
-        mapCoords.reduce((sum, c) => sum + c[0], 0) / mapCoords.length,
-        mapCoords.reduce((sum, c) => sum + c[1], 0) / mapCoords.length,
-      ]
-    : [-23.5505, -46.6333];
+  // Generate polygon coordinates relative to the property center
+  const localCoords = generatePolygonCoordinates(segments);
+  // Offset the polygon to the real location if we have UTM coordinates
+  const mapCoords = localToLatLng(localCoords, geoLocation ? propertyCenter : undefined);
+  
+  const center: [number, number] = geoLocation 
+    ? propertyCenter 
+    : (mapCoords.length
+      ? [
+          mapCoords.reduce((sum, c) => sum + c[0], 0) / mapCoords.length,
+          mapCoords.reduce((sum, c) => sum + c[1], 0) / mapCoords.length,
+        ]
+      : [-23.5505, -46.6333]);
 
   // Handle "Ver no Mapa" - geocode address and show map at location
   const handleViewOnMap = async () => {

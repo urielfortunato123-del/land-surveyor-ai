@@ -115,6 +115,14 @@ Retorne os dados em formato JSON estruturado:
   "propertyType": "rural" | "urbano",
   "areaDeclared": number | null,
   "perimeterDeclared": number | null,
+  "utmCoordinates": {
+    "zone": number | null (zona UTM, ex: 23),
+    "hemisphere": "N" | "S" (hemisfério, no Brasil é sempre "S"),
+    "firstVertex": {
+      "n": number (coordenada Norte/Y do primeiro vértice),
+      "e": number (coordenada Este/X do primeiro vértice)
+    } | null
+  } | null,
   "segments": [
     {
       "index": number,
@@ -133,7 +141,14 @@ Retorne os dados em formato JSON estruturado:
     "rightConfrontation": "string (com quem faz divisa à direita)",
     "leftConfrontation": "string (com quem faz divisa à esquerda)"
   } | null
-}`
+}
+
+IMPORTANTE sobre coordenadas UTM:
+- Coordenadas UTM aparecem como N= (Norte/Y) e E= (Este/X)
+- Exemplo: "N= 7382536.544 e E= 283131.811"
+- A zona UTM pode ser inferida pela localização (SP geralmente é zona 23)
+- No Brasil o hemisfério é sempre Sul ("S")
+- Extraia as coordenadas do PRIMEIRO vértice (vértice "1" ou ponto inicial)`
             },
             {
               role: 'user',
