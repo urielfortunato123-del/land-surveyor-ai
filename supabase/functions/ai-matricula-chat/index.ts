@@ -312,13 +312,25 @@ IMPORTANTE: Todas as alterações são registradas em log de auditoria com data/
 
     // Recalculate azimuth values if segments were updated
     if (result.updatedSegments) {
-      result.updatedSegments = result.updatedSegments.map((seg: Segment) => {
-        const azimuth = parseBearingToAzimuth(seg.bearingRaw);
+      result.updatedSegments = result.updatedSegments.map((seg: any, idx: number) => {
+        // Handle both AI response format and standard format
+        const bearingRaw = seg.bearingRaw || seg.rumo || '';
+        const distanceM = parseFloat(String(seg.distanceM || seg.distancia || '0').replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+        const confrontation = seg.confrontation || seg.confrontante || '';
+        const index = seg.index ?? (parseInt(String(seg.point || '').replace(/\D/g, '')) || (idx + 1));
+        
+        const azimuth = parseBearingToAzimuth(bearingRaw);
+        const deltaX = distanceM * Math.sin(azimuth * Math.PI / 180);
+        const deltaY = distanceM * Math.cos(azimuth * Math.PI / 180);
+        
         return {
-          ...seg,
+          index,
+          bearingRaw,
           bearingAzimuth: azimuth,
-          deltaX: seg.distanceM * Math.sin(azimuth * Math.PI / 180),
-          deltaY: seg.distanceM * Math.cos(azimuth * Math.PI / 180),
+          distanceM,
+          confrontation,
+          deltaX,
+          deltaY,
         };
       });
       
