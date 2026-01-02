@@ -32,6 +32,10 @@ export interface ExtractedMatriculaData {
   registryOffice?: string;
   city?: string;
   state?: string;
+  // Additional address info for better geocoding
+  propertyAddress?: string;
+  neighborhood?: string;
+  road?: string; // e.g., "Rodovia SP 261 km 55"
   areaDeclared?: number;
   perimeterDeclared?: number;
   propertyType?: 'rural' | 'urbano';
@@ -54,19 +58,122 @@ interface ProjectData {
   extractedData: ExtractedMatriculaData | null;
   processedAt: Date;
   rawImages?: string[];
-  // Cached lat/lng from UTM conversion
+  // Cached lat/lng from UTM conversion or geocoding
   geoLocation?: { lat: number; lng: number } | null;
+  // Flag to indicate geocoding is pending
+  needsGeocoding?: boolean;
 }
 
 // In-memory store (temporary - replace with Supabase in production)
 const projectStore: Map<string, ProjectData> = new Map();
 
+// Geocoding function using Nominatim (free, no API key)
+async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+  if (!address.trim()) return null;
+  
+  try {
+    const encodedAddress = encodeURIComponent(address);
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1&countrycodes=br`,
+      {
+        headers: {
+          'User-Agent': 'GeoMatricula/1.0'
+        }
+      }
+    );
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    if (data.length === 0) return null;
+
+    return {
+      lat: parseFloat(data[0].lat),
+      lng: parseFloat(data[0].lon)
+    };
+  } catch (err) {
+    console.error('Geocoding error:', err);
+    return null;
+  }
+}
+
+// Build best address string from extracted data for geocoding
+function buildAddressForGeocoding(data: ExtractedMatriculaData): string {
+  const parts: string[] = [];
+  
+  // Try to include as much detail as possible
+  // Road/highway info is very useful (e.g., "Rodovia SP 261 km 55")
+  if (data.road) {
+    parts.push(data.road);
+  }
+  
+  // Property address
+  if (data.propertyAddress) {
+    parts.push(data.propertyAddress);
+  }
+  
+  // Neighborhood
+  if (data.neighborhood) {
+    parts.push(data.neighborhood);
+  }
+  
+  // City and state are essential
+  if (data.city) {
+    parts.push(data.city);
+  }
+  
+  if (data.state) {
+    parts.push(data.state);
+  }
+  
+  // Always include Brazil for better results
+  parts.push('Brasil');
+  
+  return parts.join(', ');
+}
+
 export const extractedDataStore = {
-  save(projectId: string, data: Partial<ProjectData>) {
+  async save(projectId: string, data: Partial<ProjectData>) {
     const existing = projectStore.get(projectId);
     
-    // Convert UTM coordinates to lat/lng if available
+    // First priority: UTM coordinates (most accurate)
     let geoLocation = data.geoLocation || existing?.geoLocation;
+    
+    if (data.extractedData?.utmCoordinates && !geoLocation) {
+      geoLocation = convertExtractedUTMToLatLng(
+        data.extractedData.utmCoordinates,
+        data.extractedData.state
+      );
+      console.log('📍 Location from UTM coordinates:', geoLocation);
+    }
+    
+    // Second priority: Geocode from address (if no UTM)
+    if (!geoLocation && data.extractedData) {
+      const address = buildAddressForGeocoding(data.extractedData);
+      console.log('🔍 Geocoding address:', address);
+      
+      if (address !== 'Brasil') {
+        geoLocation = await geocodeAddress(address);
+        console.log('📍 Location from geocoding:', geoLocation);
+      }
+    }
+    
+    projectStore.set(projectId, {
+      id: projectId,
+      title: data.title || existing?.title || '',
+      extractedData: data.extractedData ?? existing?.extractedData ?? null,
+      processedAt: new Date(),
+      rawImages: data.rawImages || existing?.rawImages,
+      geoLocation,
+    });
+  },
+
+  // Synchronous save for cases where we don't need geocoding
+  saveSync(projectId: string, data: Partial<ProjectData>) {
+    const existing = projectStore.get(projectId);
+    
+    let geoLocation = data.geoLocation || existing?.geoLocation;
+    
     if (data.extractedData?.utmCoordinates && !geoLocation) {
       geoLocation = convertExtractedUTMToLatLng(
         data.extractedData.utmCoordinates,
@@ -81,6 +188,7 @@ export const extractedDataStore = {
       processedAt: new Date(),
       rawImages: data.rawImages || existing?.rawImages,
       geoLocation,
+      needsGeocoding: !geoLocation && !data.extractedData?.utmCoordinates,
     });
   },
 

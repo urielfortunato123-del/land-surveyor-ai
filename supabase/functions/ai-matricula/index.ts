@@ -111,7 +111,9 @@ Retorne os dados em formato JSON estruturado:
   "registryOffice": "string",
   "city": "string",
   "state": "string",
-  "address": "string (endereço completo se disponível)",
+  "propertyAddress": "string (endereço completo: rua, número, etc.)",
+  "neighborhood": "string (bairro se disponível)",
+  "road": "string (rodovia/estrada com km se for rural, ex: 'Rodovia SP 261 km 55')",
   "propertyType": "rural" | "urbano",
   "areaDeclared": number | null,
   "perimeterDeclared": number | null,
@@ -142,6 +144,11 @@ Retorne os dados em formato JSON estruturado:
     "leftConfrontation": "string (com quem faz divisa à esquerda)"
   } | null
 }
+
+IMPORTANTE para geolocalização:
+- Extraia TODA informação de localização disponível (rua, rodovia, km, bairro, cidade, estado)
+- Para imóveis rurais, a rodovia/estrada com km é MUITO importante para localização
+- Exemplo de "road": "Rodovia SP 261 km 55 + 200m"
 
 IMPORTANTE sobre coordenadas UTM:
 - Coordenadas UTM aparecem como N= (Norte/Y) e E= (Este/X)
