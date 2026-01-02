@@ -1,6 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+
+type MapLayer = 'standard' | 'satellite' | 'terrain';
 
 interface OSMMapProps {
   coordinates: [number, number][];
@@ -16,6 +18,24 @@ interface OSMMapProps {
   markerOnly?: boolean;
 }
 
+const layerConfigs: Record<MapLayer, { url: string; attribution: string; maxZoom: number }> = {
+  standard: {
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19,
+  },
+  satellite: {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: '&copy; Esri, Maxar, Earthstar Geographics',
+    maxZoom: 19,
+  },
+  terrain: {
+    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://opentopomap.org">OpenTopoMap</a>',
+    maxZoom: 17,
+  },
+};
+
 const OSMMap: React.FC<OSMMapProps> = ({
   coordinates,
   segments = [],
@@ -26,6 +46,27 @@ const OSMMap: React.FC<OSMMapProps> = ({
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<L.Map | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const [activeLayer, setActiveLayer] = useState<MapLayer>('standard');
+
+  // Handle layer change without recreating map
+  const changeLayer = (layer: MapLayer) => {
+    if (!mapInstance.current) return;
+    
+    // Remove current tile layer
+    if (tileLayerRef.current) {
+      tileLayerRef.current.remove();
+    }
+    
+    // Add new tile layer
+    const config = layerConfigs[layer];
+    tileLayerRef.current = L.tileLayer(config.url, {
+      attribution: config.attribution,
+      maxZoom: config.maxZoom,
+    }).addTo(mapInstance.current);
+    
+    setActiveLayer(layer);
+  };
 
   useEffect(() => {
     if (!mapContainer.current) return;
@@ -51,10 +92,11 @@ const OSMMap: React.FC<OSMMapProps> = ({
       zoomControl: true,
     });
 
-    // Add OpenStreetMap tiles
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 19,
+    // Add initial tile layer
+    const config = layerConfigs[activeLayer];
+    tileLayerRef.current = L.tileLayer(config.url, {
+      attribution: config.attribution,
+      maxZoom: config.maxZoom,
     }).addTo(mapInstance.current);
 
     // If markerOnly, just add a marker at center
@@ -85,11 +127,11 @@ const OSMMap: React.FC<OSMMapProps> = ({
         polygonCoords.push(polygonCoords[0]);
       }
 
-      // Add polygon
+      // Add polygon with better visibility for satellite
       L.polygon(polygonCoords, {
-        color: '#00B4A6',
+        color: '#FFD700',
         fillColor: '#00B4A6',
-        fillOpacity: 0.2,
+        fillOpacity: 0.25,
         weight: 3,
       }).addTo(mapInstance.current);
 
@@ -98,8 +140,8 @@ const OSMMap: React.FC<OSMMapProps> = ({
         coordinates.slice(0, -1).forEach((coord, i) => {
           const marker = L.circleMarker(coord, {
             radius: 8,
-            color: '#1a365d',
-            fillColor: '#2d4a6f',
+            color: '#FFD700',
+            fillColor: '#1a365d',
             fillOpacity: 1,
             weight: 2,
           }).addTo(mapInstance.current!);
@@ -159,8 +201,60 @@ const OSMMap: React.FC<OSMMapProps> = ({
         .leaflet-container {
           font-family: inherit;
         }
+        .layer-control {
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          z-index: 1000;
+          display: flex;
+          gap: 4px;
+          background: white;
+          padding: 4px;
+          border-radius: 8px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .layer-btn {
+          padding: 6px 12px;
+          border: none;
+          border-radius: 6px;
+          font-size: 12px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+          background: transparent;
+          color: #666;
+        }
+        .layer-btn:hover {
+          background: #f0f0f0;
+        }
+        .layer-btn.active {
+          background: #1a365d;
+          color: white;
+        }
       `}</style>
-      <div ref={mapContainer} className="w-full h-full" />
+      <div className="relative w-full h-full">
+        <div className="layer-control">
+          <button
+            className={`layer-btn ${activeLayer === 'standard' ? 'active' : ''}`}
+            onClick={() => changeLayer('standard')}
+          >
+            Mapa
+          </button>
+          <button
+            className={`layer-btn ${activeLayer === 'satellite' ? 'active' : ''}`}
+            onClick={() => changeLayer('satellite')}
+          >
+            Satélite
+          </button>
+          <button
+            className={`layer-btn ${activeLayer === 'terrain' ? 'active' : ''}`}
+            onClick={() => changeLayer('terrain')}
+          >
+            Terreno
+          </button>
+        </div>
+        <div ref={mapContainer} className="w-full h-full" />
+      </div>
     </>
   );
 };
