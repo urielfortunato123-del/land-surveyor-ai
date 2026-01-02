@@ -26,6 +26,7 @@ import { MapErrorBoundary } from '@/components/MapErrorBoundary';
 import SegmentEditor from '@/components/SegmentEditor';
 import ExportDialog from '@/components/ExportDialog';
 import LocationSearch from '@/components/LocationSearch';
+import { AIAssistantChat } from '@/components/AIAssistantChat';
 import { generatePolygonCoordinates, localToLatLng, getQualityIndicator } from '@/lib/mockData';
 import { extractedDataStore } from '@/lib/extractedDataStore';
 import { QualityLevel, Segment, ParcelResult } from '@/types';
@@ -611,6 +612,25 @@ const ProjectResult = () => {
           </motion.div>
         </div>
       </main>
+      
+      {/* AI Assistant Chat */}
+      {result && (
+        <AIAssistantChat
+          segments={segments}
+          propertyData={{
+            matricula: extractedData?.matricula,
+            owner: extractedData?.owner,
+            city: extractedData?.city,
+            state: extractedData?.state,
+            area: result.areaComputed,
+            closureError: result.closureError
+          }}
+          onSegmentsUpdate={(updatedSegments) => {
+            // Update segments state and recalculate
+            setSegments(updatedSegments);
+          }}
+        />
+      )}
     </div>
   );
 };
