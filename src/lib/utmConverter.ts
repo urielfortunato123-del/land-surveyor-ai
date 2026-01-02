@@ -31,8 +31,8 @@ export function utmToLatLng(utm: UTMCoordinates): LatLng {
   const x = easting - 500000;
   const y = hemisphere === 'S' ? northing - 10000000 : northing;
   
-  // Calculate the meridian
-  const lonOrigin = (zone - 1) * 6 - 180 + 3;
+  // Calculate the central meridian in degrees
+  const lonOriginDeg = (zone - 1) * 6 - 180 + 3;
   
   // Calculate footprint latitude
   const M = y / k0;
@@ -51,23 +51,23 @@ export function utmToLatLng(utm: UTMCoordinates): LatLng {
   const R1 = a * (1 - Math.pow(e, 2)) / Math.pow(1 - Math.pow(e, 2) * Math.pow(Math.sin(phi1), 2), 1.5);
   const D = x / (N1 * k0);
   
-  // Calculate latitude
-  let lat = phi1 - (N1 * Math.tan(phi1) / R1) * (
+  // Calculate latitude (in radians)
+  const latRad = phi1 - (N1 * Math.tan(phi1) / R1) * (
     Math.pow(D, 2) / 2 - 
     (5 + 3 * T1 + 10 * C1 - 4 * Math.pow(C1, 2) - 9 * e1sq) * Math.pow(D, 4) / 24 +
     (61 + 90 * T1 + 298 * C1 + 45 * Math.pow(T1, 2) - 252 * e1sq - 3 * Math.pow(C1, 2)) * Math.pow(D, 6) / 720
   );
   
-  // Calculate longitude
-  let lng = lonOrigin + (
+  // Calculate longitude offset (in radians)
+  const lngOffset = (
     D - 
     (1 + 2 * T1 + C1) * Math.pow(D, 3) / 6 +
     (5 - 2 * C1 + 28 * T1 - 3 * Math.pow(C1, 2) + 8 * e1sq + 24 * Math.pow(T1, 2)) * Math.pow(D, 5) / 120
   ) / Math.cos(phi1);
   
   // Convert to degrees
-  lat = lat * (180 / Math.PI);
-  lng = lng * (180 / Math.PI);
+  const lat = latRad * (180 / Math.PI);
+  const lng = lonOriginDeg + lngOffset * (180 / Math.PI);
   
   return { lat, lng };
 }
