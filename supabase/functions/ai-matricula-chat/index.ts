@@ -36,6 +36,82 @@ interface RequestBody {
   fileAttachment?: FileAttachment;
 }
 
+// Function to extract text from PDF using basic parsing
+// This extracts readable text content from PDF structure
+function extractPdfText(base64Data: string): string {
+  try {
+    // Decode base64 to string
+    const binaryString = atob(base64Data);
+    
+    // Simple PDF text extraction - look for text between BT and ET markers
+    // and extract text from Tj, TJ, ' operators
+    const textParts: string[] = [];
+    
+    // Try to find text streams in the PDF
+    // Look for patterns like (text)Tj or [(text)]TJ
+    const tjPattern = /\(([^)]*)\)\s*Tj/g;
+    const tjArrayPattern = /\[([^\]]*)\]\s*TJ/g;
+    const textPattern = /BT[\s\S]*?ET/g;
+    
+    // Extract from text blocks
+    const textBlocks = binaryString.match(textPattern) || [];
+    for (const block of textBlocks) {
+      // Get text from Tj operator
+      let match;
+      while ((match = tjPattern.exec(block)) !== null) {
+        const text = match[1]
+          .replace(/\\n/g, '\n')
+          .replace(/\\r/g, '')
+          .replace(/\\t/g, ' ')
+          .replace(/\\\(/g, '(')
+          .replace(/\\\)/g, ')')
+          .replace(/\\\\/g, '\\');
+        if (text.trim()) {
+          textParts.push(text);
+        }
+      }
+      
+      // Get text from TJ operator (arrays)
+      while ((match = tjArrayPattern.exec(block)) !== null) {
+        const arrayContent = match[1];
+        const innerParts = arrayContent.match(/\(([^)]*)\)/g) || [];
+        for (const part of innerParts) {
+          const text = part.slice(1, -1)
+            .replace(/\\n/g, '\n')
+            .replace(/\\r/g, '')
+            .replace(/\\t/g, ' ');
+          if (text.trim()) {
+            textParts.push(text);
+          }
+        }
+      }
+    }
+    
+    // Also try to find FlateDecode streams and extract any readable text
+    // Look for patterns that might contain coordinates and measurements
+    const coordPattern = /(\d+)[°º]\s*(\d+)?['′]?\s*(\d+)?["″]?/g;
+    const distancePattern = /(\d+[,.]?\d*)\s*m(?:etros?)?/gi;
+    
+    let coordMatch;
+    while ((coordMatch = coordPattern.exec(binaryString)) !== null) {
+      textParts.push(coordMatch[0]);
+    }
+    
+    let distMatch;
+    while ((distMatch = distancePattern.exec(binaryString)) !== null) {
+      textParts.push(distMatch[0]);
+    }
+    
+    const extractedText = textParts.join(' ');
+    console.log('Basic PDF text extraction, found parts:', textParts.length);
+    
+    return extractedText || '';
+  } catch (error) {
+    console.error('Error in basic PDF parsing:', error);
+    return '';
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -133,12 +209,30 @@ IMPORTANTE: Todas as alterações são registradas em log de auditoria com data/
             }
           ]
         });
+      } else if (fileAttachment.type === 'application/pdf') {
+        // For PDFs, extract text and send to AI
+        console.log('Extracting text from PDF...');
+        const pdfText = extractPdfText(fileAttachment.base64);
+        
+        if (pdfText && pdfText.length > 50) {
+          console.log('PDF text extracted, length:', pdfText.length);
+          messages.push({
+            role: 'user',
+            content: `${message}\n\n--- CONTEÚDO DO DOCUMENTO PDF "${fileAttachment.name}" ---\n${pdfText}\n--- FIM DO DOCUMENTO ---\n\nAnalise o texto acima e extraia os rumos, distâncias e confrontantes. Compare com os segmentos atuais e faça as correções necessárias.`
+          });
+        } else {
+          // PDF text extraction failed or returned too little, try to inform user
+          console.log('PDF text extraction returned insufficient text, trying alternative approach');
+          messages.push({
+            role: 'user',
+            content: `${message}\n\n[O usuário enviou o PDF "${fileAttachment.name}" mas não foi possível extrair texto suficiente. O PDF pode estar escaneado como imagem. Por favor, peça ao usuário para enviar uma FOTO ou IMAGEM do documento, ou copiar e colar o texto dos rumos e distâncias manualmente.]`
+          });
+        }
       } else {
-        // For PDFs/docs, we'll describe what was sent and ask AI to work with the text
-        // Note: In production, you'd want to use a document parsing service
+        // For other docs (Word, etc), ask for image or text
         messages.push({
           role: 'user',
-          content: `${message}\n\n[O usuário enviou um arquivo: ${fileAttachment.name} (${fileAttachment.type}). Como não posso visualizar PDFs diretamente, peça ao usuário para enviar uma foto/imagem do documento ou copiar o texto dos rumos e distâncias.]`
+          content: `${message}\n\n[O usuário enviou um arquivo: ${fileAttachment.name} (${fileAttachment.type}). Para analisar este tipo de documento, peça ao usuário para enviar uma foto/imagem ou copiar o texto dos rumos e distâncias.]`
         });
       }
     } else {
