@@ -323,35 +323,61 @@ export const extractedDataStore = {
 
 // Helper functions
 function parseBearingToAzimuth(bearing: string): number {
-  // Parse bearings like "N 45°30' W", "S 30°15' E", etc.
-  const match = bearing.match(/([NS])\s*(\d+)[°]?\s*(\d+)?['′]?\s*(\d+)?["″]?\s*([EW])/i);
+  console.log('Parsing bearing:', bearing);
   
-  if (!match) {
-    // Try Az format: "Az 125°45'30\""
-    const azMatch = bearing.match(/Az\.?\s*(\d+)[°]?\s*(\d+)?['′]?\s*(\d+)?["″]?/i);
-    if (azMatch) {
-      const deg = parseFloat(azMatch[1]);
-      const min = parseFloat(azMatch[2] || '0');
-      const sec = parseFloat(azMatch[3] || '0');
-      return deg + min / 60 + sec / 3600;
-    }
-    return 0;
+  // Try Az format first: "Az 125°45'30\"" or "Az. 125°45'30\""
+  const azMatch = bearing.match(/Az\.?\s*(\d+)[°]?\s*(\d+)?['′]?\s*(\d+)?["″]?/i);
+  if (azMatch) {
+    const deg = parseFloat(azMatch[1]);
+    const min = parseFloat(azMatch[2] || '0');
+    const sec = parseFloat(azMatch[3] || '0');
+    const result = deg + min / 60 + sec / 3600;
+    console.log('Parsed Az format:', result);
+    return result;
+  }
+  
+  // Try direct azimuth format: "244°31'3\"" or "244°31'03\"" (no Az prefix)
+  const directAzMatch = bearing.match(/^(\d+)[°]\s*(\d+)?['′]?\s*(\d+)?["″]?$/);
+  if (directAzMatch) {
+    const deg = parseFloat(directAzMatch[1]);
+    const min = parseFloat(directAzMatch[2] || '0');
+    const sec = parseFloat(directAzMatch[3] || '0');
+    const result = deg + min / 60 + sec / 3600;
+    console.log('Parsed direct azimuth format:', result);
+    return result;
+  }
+  
+  // Parse quadrant bearings like "N 45°30' W", "S 30°15' E", etc.
+  const quadrantMatch = bearing.match(/([NS])\s*(\d+)[°]?\s*(\d+)?['′]?\s*(\d+)?["″]?\s*([EW])/i);
+  if (quadrantMatch) {
+    const ns = quadrantMatch[1].toUpperCase();
+    const deg = parseFloat(quadrantMatch[2]);
+    const min = parseFloat(quadrantMatch[3] || '0');
+    const sec = parseFloat(quadrantMatch[4] || '0');
+    const ew = quadrantMatch[5].toUpperCase();
+
+    const angle = deg + min / 60 + sec / 3600;
+
+    // Convert quadrant bearing to azimuth
+    let result = 0;
+    if (ns === 'N' && ew === 'E') result = angle;
+    else if (ns === 'N' && ew === 'W') result = 360 - angle;
+    else if (ns === 'S' && ew === 'E') result = 180 - angle;
+    else if (ns === 'S' && ew === 'W') result = 180 + angle;
+    
+    console.log('Parsed quadrant bearing:', result);
+    return result;
+  }
+  
+  // Try decimal degrees format: "152.4583°" or just "152.4583"
+  const decimalMatch = bearing.match(/^(\d+\.?\d*)[°]?$/);
+  if (decimalMatch) {
+    const result = parseFloat(decimalMatch[1]);
+    console.log('Parsed decimal degrees:', result);
+    return result;
   }
 
-  const ns = match[1].toUpperCase();
-  const deg = parseFloat(match[2]);
-  const min = parseFloat(match[3] || '0');
-  const sec = parseFloat(match[4] || '0');
-  const ew = match[5].toUpperCase();
-
-  const angle = deg + min / 60 + sec / 3600;
-
-  // Convert quadrant bearing to azimuth
-  if (ns === 'N' && ew === 'E') return angle;
-  if (ns === 'N' && ew === 'W') return 360 - angle;
-  if (ns === 'S' && ew === 'E') return 180 - angle;
-  if (ns === 'S' && ew === 'W') return 180 + angle;
-
+  console.log('Could not parse bearing, returning 0');
   return 0;
 }
 
