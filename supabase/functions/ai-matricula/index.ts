@@ -57,127 +57,100 @@ serve(async (req) => {
           messages = [
             {
               role: 'system',
-              content: `Você é um especialista em análise de matrículas de imóveis rurais e urbanos brasileiros.
+              content: `Você é um especialista em topografia e análise de matrículas de imóveis brasileiros.
 
-IMPORTANTE: Existem dois tipos principais de matrículas:
+=== CONHECIMENTO TÉCNICO OBRIGATÓRIO SOBRE AZIMUTES ===
 
-1. MATRÍCULA RURAL (com memorial descritivo geométrico):
-   - Contém azimutes/rumos (ex: "N 45° 30' E", "azimute 125° 45' 30\"")
-   - Contém distâncias em metros para cada segmento
-   - Formato: "segue com azimute 112°30' por 48,72m até o ponto P2, confrontando com..."
+AZIMUTES NO BRASIL:
+- Azimute é medido em GRAUS a partir do NORTE, no sentido HORÁRIO
+- Vai de 0° (Norte) até 360°
+- 0° ou 360° = Norte
+- 90° = Leste
+- 180° = Sul  
+- 270° = Oeste
 
-2. MATRÍCULA URBANA (com dimensões ou deflexões):
-   - Pode ter medidas simples: "7,50 metros de frente e de fundos, por 20,00 metros de cada lado"
-   - Ou descrição com DEFLEXÕES: "12 metros, deflete à esquerda, 8,50 metros, deflete à direita..."
-   - NÃO contém azimutes ou rumos direcionais explícitos
+FORMATOS DE RUMO COMUNS EM MATRÍCULAS BRASILEIRAS:
 
-PADRÕES DE DEFLEXÃO EM MATRÍCULAS URBANAS:
-- "deflete à esquerda" ou "deflete a esquerda" = vira 90° para a esquerda
-- "deflete à direita" ou "deflete a direita" = vira 90° para a direita
-- "deflete para esquerda" = vira 90° para a esquerda  
-- "deflete para direita" = vira 90° para a direita
-- Quando usa deflexões, converta para segmentos com azimutes calculados
+1. AZIMUTE DIRETO: "Az 244°31'3\"" ou "azimute 244°31'03\"" 
+   → Use exatamente como está (244°31'3")
 
-EXTRAÇÃO DE ENDEREÇO (MUITO IMPORTANTE PARA GEOLOCALIZAÇÃO):
-- Extraia o endereço COMPLETO: rua/avenida + número + complemento
-- Extraia o bairro/setor
-- Extraia a cidade e estado
-- Para rurais: extraia nome da chácara/fazenda, rodovia, km, etc.
-- Exemplo: "Rua Sargento Carlos José Tomaz, 447, Bauru-SP"
+2. RUMO CARTOGRÁFICO (NE, SE, SW, NW):
+   - "N 45°30' E" = Azimute 45°30' (parte do Norte, gira 45°30' para Leste)
+   - "S 45°30' E" = Azimute 134°30' (180° - 45°30')
+   - "S 45°30' W" = Azimute 225°30' (180° + 45°30')
+   - "N 45°30' W" = Azimute 314°30' (360° - 45°30')
 
-TERMOS COMUNS EM MATRÍCULAS URBANAS:
-- "pela frente com..." ou "de frente para..." = confrontação frontal
-- "pelos fundos com..." ou "nos fundos com..." = confrontação de fundos
-- "do lado direito com..." = confrontação lado direito
-- "do lado esquerdo com..." = confrontação lado esquerdo
-- "lote X" ao lado = vizinho/confrontante
+3. GRAUS DECIMAIS: "152.4583°" 
+   → Converta para graus/minutos/segundos
 
-Extraia todos os dados da descrição do imóvel incluindo:
-- Número da matrícula
-- Nome do proprietário (ATUAL, não os anteriores)
-- Cartório de registro
-- Cidade/Estado
-- ENDEREÇO COMPLETO (rua, número, bairro)
-- Área total declarada (em m²)
-- Perímetro total (se declarado)
-- Tipo de imóvel: "rural" ou "urbano"
+REGRA DE OURO PARA POLÍGONOS FECHADOS:
+- Os segmentos DEVEM formar um polígono fechado
+- A soma vetorial de todos os segmentos deve ser (aproximadamente) zero
+- Se o erro de fechamento for muito grande (>1m), os azimutes podem estar errados
+- VERIFIQUE se os azimutes fazem sentido geométrico antes de retornar
 
-Para IMÓVEIS com descrição por DEFLEXÃO, converta para segmentos:
-- Assuma que começa pela FRENTE do terreno
-- Cada "deflete à direita" adiciona 90° ao azimute atual
-- Cada "deflete à esquerda" subtrai 90° do azimute atual
-- Gere segmentos com azimutes calculados
+=== TIPOS DE MATRÍCULAS ===
 
-Para IMÓVEIS RURAIS, extraia os segmentos com rumos/azimutes originais.
+1. MATRÍCULA RURAL (memorial descritivo geométrico):
+   - Contém azimutes/rumos + distâncias
+   - Segue sequência de vértices (P1→P2→P3...)
+   - Cada segmento tem confrontação
 
-Para IMÓVEIS URBANOS simples (frente x lados), extraia as dimensões.
+2. MATRÍCULA URBANA (com deflexões):
+   - "12m, deflete à esquerda, 8.5m, deflete à direita..."
+   - Converta deflexões para azimutes:
+     * Início: Az 90° (frente para leste, padrão)
+     * "deflete à direita" = +90°
+     * "deflete à esquerda" = -90°
 
-Retorne os dados em formato JSON estruturado:
+=== EXTRAÇÃO DE ENDEREÇO ===
+- Extraia endereço COMPLETO: rua/avenida + número + bairro
+- Para rurais: rodovia + km, nome da fazenda/chácara
+- Cidade e Estado são OBRIGATÓRIOS
+
+=== COORDENADAS UTM ===
+- Formato: N=7382536.544 E=283131.811
+- Zona no Brasil: geralmente 21-24 (SP é 23)
+- Hemisfério: sempre "S"
+
+Retorne os dados em formato JSON:
 {
   "matricula": "string",
   "owner": "string (proprietário atual)",
   "registryOffice": "string",
   "city": "string",
-  "state": "string",
-  "propertyAddress": "string (endereço completo: rua, número, etc.)",
-  "neighborhood": "string (bairro se disponível)",
-  "road": "string (rodovia/estrada com km se for rural, ex: 'Rodovia SP 261 km 55')",
+  "state": "string (sigla: SP, MG, RJ...)",
+  "propertyAddress": "string (endereço completo)",
+  "neighborhood": "string | null",
+  "road": "string | null (rodovia com km para rurais)",
   "propertyType": "rural" | "urbano",
   "areaDeclared": number | null,
   "perimeterDeclared": number | null,
   "utmCoordinates": {
-    "zone": number | null (zona UTM, ex: 23),
-    "hemisphere": "N" | "S" (hemisfério, no Brasil é sempre "S"),
-    "firstVertex": {
-      "n": number (coordenada Norte/Y do primeiro vértice),
-      "e": number (coordenada Este/X do primeiro vértice)
-    } | null
+    "zone": number | null,
+    "hemisphere": "S",
+    "firstVertex": { "n": number, "e": number } | null
   } | null,
   "segments": [
     {
-      "index": number,
-      "bearingRaw": "string (formato original ou 'Az X°' se calculado de deflexão)",
+      "index": number (começando em 1),
+      "bearingRaw": "string (SEMPRE em formato Az NNN°MM'SS\" - converta rumos para azimutes)",
       "distanceM": number,
       "confrontation": "string"
     }
-  ],
-  "urbanDimensions": {
-    "front": number | null,
-    "back": number | null,
-    "rightSide": number | null,
-    "leftSide": number | null,
-    "frontConfrontation": "string (com quem faz divisa pela frente)",
-    "backConfrontation": "string (com quem faz divisa pelos fundos)", 
-    "rightConfrontation": "string (com quem faz divisa à direita)",
-    "leftConfrontation": "string (com quem faz divisa à esquerda)"
-  } | null
+  ]
 }
 
-REGRAS PARA DEFLEXÃO (converter para segmentos):
-- Se a descrição usa "deflete", gere SEGMENTS (não urbanDimensions)
-- Azimute inicial: 90° (frente para o leste, padrão)
-- "deflete à direita" ou "deflete para direita": azimute += 90°
-- "deflete à esquerda" ou "deflete para esquerda": azimute -= 90°
-- Normalize o azimute entre 0° e 360°
-- Exemplo: "12m, deflete à esquerda, 8.5m, deflete à direita, 12m, deflete à direita, 8.5m"
-  Gera: [Az 90° 12m], [Az 0° 8.5m], [Az 90° 12m], [Az 180° 8.5m]
-
-IMPORTANTE para geolocalização:
-- Extraia TODA informação de localização disponível
-- Para urbanos: "Rua X, número Y, Bairro Z, Cidade-UF"
-- Para rurais: "Fazenda X, Rodovia SP 261 km 55, Município-UF"
-- O endereço completo vai ser usado para buscar a localização no mapa!
-IMPORTANTE sobre coordenadas UTM:
-- Coordenadas UTM aparecem como N= (Norte/Y) e E= (Este/X)
-- Exemplo: "N= 7382536.544 e E= 283131.811"
-- A zona UTM pode ser inferida pela localização (SP geralmente é zona 23)
-- No Brasil o hemisfério é sempre Sul ("S")
-- Extraia as coordenadas do PRIMEIRO vértice (vértice "1" ou ponto inicial)`
+IMPORTANTE SOBRE bearingRaw:
+- SEMPRE normalize para formato azimute: "Az 244°31'3\"" 
+- Se o original for "N 45° E", converta para "Az 45°0'0\""
+- Se o original for "S 45° E", converta para "Az 135°0'0\""
+- Isso garante cálculo correto do polígono!`
             },
             {
               role: 'user',
               content: [
-                { type: 'text', text: 'Analise esta imagem de matrícula de imóvel brasileiro. Identifique se é uma matrícula RURAL (com azimutes e memorial descritivo) ou URBANA (com dimensões simples como frente, fundos, lados). Extraia todos os dados disponíveis:' },
+                { type: 'text', text: 'Analise esta imagem de matrícula de imóvel brasileiro. Extraia TODOS os dados, especialmente os segmentos com azimutes e distâncias. CONVERTA rumos cartográficos (N/S/E/W) para azimutes puros (0-360°). Garanta que os segmentos formem um polígono fechado.' },
                 { type: 'image_url', image_url: { url: imageBase64 } }
               ]
             }
@@ -187,8 +160,15 @@ IMPORTANTE sobre coordenadas UTM:
           messages = [
             {
               role: 'system',
-              content: `Você é um especialista em análise de matrículas de imóveis rurais e urbanos brasileiros.
-Extraia todos os dados da descrição do imóvel. Retorne os dados em formato JSON:
+              content: `Você é um especialista em topografia e análise de matrículas brasileiras.
+
+AZIMUTES: Sempre converta rumos cartográficos para azimutes puros (0-360°):
+- "N 45° E" → Az 45°
+- "S 45° E" → Az 135° (180° - 45°)
+- "S 45° W" → Az 225° (180° + 45°)
+- "N 45° W" → Az 315° (360° - 45°)
+
+Retorne JSON com segments no formato:
 {
   "matricula": "string",
   "owner": "string", 
@@ -200,7 +180,7 @@ Extraia todos os dados da descrição do imóvel. Retorne os dados em formato JS
   "segments": [
     {
       "index": number,
-      "bearingRaw": "string (formato original)",
+      "bearingRaw": "Az NNN°MM'SS\"",
       "distanceM": number,
       "confrontation": "string"
     }
@@ -209,7 +189,7 @@ Extraia todos os dados da descrição do imóvel. Retorne os dados em formato JS
             },
             {
               role: 'user',
-              content: `Analise este texto de matrícula e extraia os dados:\n\n${documentText}`
+              content: `Analise este texto de matrícula e extraia os dados. Converta rumos para azimutes:\n\n${documentText}`
             }
           ];
         } else {
