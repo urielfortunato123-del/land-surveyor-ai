@@ -189,6 +189,69 @@ export type Database = {
         }
         Relationships: []
       }
+      segment_audit_logs: {
+        Row: {
+          action_type: string
+          ai_response: string | null
+          change_description: string
+          city: string | null
+          created_at: string
+          id: string
+          ip_address: string | null
+          matricula: string | null
+          owner_name: string | null
+          project_id: string | null
+          risk_acknowledged: boolean | null
+          segments_after: Json
+          segments_before: Json
+          state: string | null
+          user_agent: string | null
+          user_id: string | null
+          user_message: string | null
+          warning_message: string | null
+        }
+        Insert: {
+          action_type: string
+          ai_response?: string | null
+          change_description: string
+          city?: string | null
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          matricula?: string | null
+          owner_name?: string | null
+          project_id?: string | null
+          risk_acknowledged?: boolean | null
+          segments_after: Json
+          segments_before: Json
+          state?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+          user_message?: string | null
+          warning_message?: string | null
+        }
+        Update: {
+          action_type?: string
+          ai_response?: string | null
+          change_description?: string
+          city?: string | null
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          matricula?: string | null
+          owner_name?: string | null
+          project_id?: string | null
+          risk_acknowledged?: boolean | null
+          segments_after?: Json
+          segments_before?: Json
+          state?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+          user_message?: string | null
+          warning_message?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
