@@ -153,8 +153,9 @@ const ProjectUpload = () => {
       
       setProgress(85);
 
-      // Store extracted data
-      extractedDataStore.save(projectId, {
+      // Store extracted data (async - will geocode if no UTM)
+      addLog('Buscando localização geográfica...');
+      await extractedDataStore.save(projectId, {
         title: projectName || `Matrícula ${extractedData.matricula || 'Nova'}`,
         extractedData: {
           matricula: extractedData.matricula,
@@ -162,11 +163,25 @@ const ProjectUpload = () => {
           registryOffice: extractedData.registryOffice,
           city: extractedData.city,
           state: extractedData.state,
+          propertyAddress: (extractedData as any).propertyAddress,
+          neighborhood: (extractedData as any).neighborhood,
+          road: (extractedData as any).road,
+          propertyType: (extractedData as any).propertyType,
           areaDeclared: extractedData.areaDeclared,
           perimeterDeclared: extractedData.perimeterDeclared,
+          utmCoordinates: (extractedData as any).utmCoordinates,
+          urbanDimensions: (extractedData as any).urbanDimensions,
           segments: extractedData.segments || [],
         },
       });
+      
+      // Check if geolocation was found
+      const geoLocation = extractedDataStore.getGeoLocation(projectId);
+      if (geoLocation) {
+        addLog(`📍 Localização encontrada: ${geoLocation.lat.toFixed(4)}, ${geoLocation.lng.toFixed(4)}`);
+      } else {
+        addLog('⚠️ Não foi possível determinar a localização exata');
+      }
 
       addLog('Dados salvos no sistema');
       setProgress(100);
