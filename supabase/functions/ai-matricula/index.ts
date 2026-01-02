@@ -66,43 +66,51 @@ IMPORTANTE: Existem dois tipos principais de matrículas:
    - Contém distâncias em metros para cada segmento
    - Formato: "segue com azimute 112°30' por 48,72m até o ponto P2, confrontando com..."
 
-2. MATRÍCULA URBANA (com dimensões simples):
-   - Contém medidas de frente, fundos e lados
-   - Formato: "medindo 7,50 metros de frente e de fundos, por 20,00 metros de cada lado"
-   - NÃO contém azimutes ou rumos direcionais
+2. MATRÍCULA URBANA (com dimensões ou deflexões):
+   - Pode ter medidas simples: "7,50 metros de frente e de fundos, por 20,00 metros de cada lado"
+   - Ou descrição com DEFLEXÕES: "12 metros, deflete à esquerda, 8,50 metros, deflete à direita..."
+   - NÃO contém azimutes ou rumos direcionais explícitos
 
-TERMOS COMUNS EM MATRÍCULAS URBANAS (preste atenção especial):
+PADRÕES DE DEFLEXÃO EM MATRÍCULAS URBANAS:
+- "deflete à esquerda" ou "deflete a esquerda" = vira 90° para a esquerda
+- "deflete à direita" ou "deflete a direita" = vira 90° para a direita
+- "deflete para esquerda" = vira 90° para a esquerda  
+- "deflete para direita" = vira 90° para a direita
+- Quando usa deflexões, converta para segmentos com azimutes calculados
+
+EXTRAÇÃO DE ENDEREÇO (MUITO IMPORTANTE PARA GEOLOCALIZAÇÃO):
+- Extraia o endereço COMPLETO: rua/avenida + número + complemento
+- Extraia o bairro/setor
+- Extraia a cidade e estado
+- Para rurais: extraia nome da chácara/fazenda, rodovia, km, etc.
+- Exemplo: "Rua Sargento Carlos José Tomaz, 447, Bauru-SP"
+
+TERMOS COMUNS EM MATRÍCULAS URBANAS:
 - "pela frente com..." ou "de frente para..." = confrontação frontal
 - "pelos fundos com..." ou "nos fundos com..." = confrontação de fundos
-- "do lado direito com..." ou "à direita com..." = confrontação lado direito
-- "do lado esquerdo com..." ou "à esquerda com..." = confrontação lado esquerdo
-- "reflete a esquerda" ou "reflete à esquerda" = indica que a medida do lado esquerdo é igual à do lado oposto/mencionado
-- "reflete a direita" ou "reflete à direita" = indica que a medida do lado direito é igual à do lado oposto/mencionado
-- "de frente e de fundos" = ambas as medidas são iguais
-- "de cada lado" ou "de ambos os lados" = os dois lados têm a mesma medida
-- Medidas podem aparecer como: "7,50m", "7,50 metros", "sete metros e cinquenta centímetros"
+- "do lado direito com..." = confrontação lado direito
+- "do lado esquerdo com..." = confrontação lado esquerdo
+- "lote X" ao lado = vizinho/confrontante
 
 Extraia todos os dados da descrição do imóvel incluindo:
 - Número da matrícula
-- Nome do proprietário (ATUAL, não os anteriores em histórico de vendas)
+- Nome do proprietário (ATUAL, não os anteriores)
 - Cartório de registro
 - Cidade/Estado
+- ENDEREÇO COMPLETO (rua, número, bairro)
 - Área total declarada (em m²)
 - Perímetro total (se declarado)
 - Tipo de imóvel: "rural" ou "urbano"
-- Endereço do imóvel (rua, número, bairro se disponível)
 
-Para IMÓVEIS RURAIS, extraia os segmentos com:
-- Rumos/azimutes de cada segmento
-- Distâncias em metros de cada segmento
-- Confrontantes de cada lado
+Para IMÓVEIS com descrição por DEFLEXÃO, converta para segmentos:
+- Assuma que começa pela FRENTE do terreno
+- Cada "deflete à direita" adiciona 90° ao azimute atual
+- Cada "deflete à esquerda" subtrai 90° do azimute atual
+- Gere segmentos com azimutes calculados
 
-Para IMÓVEIS URBANOS, extraia as dimensões:
-- Frente (metros) - pode ser indicado como "de frente"
-- Fundos (metros) - pode ser indicado como "de fundos" ou "reflete a frente"
-- Lado direito (metros) - pode ser indicado como "reflete" se igual ao outro lado
-- Lado esquerdo (metros) - pode ser indicado como "reflete" se igual ao outro lado
-- Confrontantes de cada lado (frente, fundos, direito, esquerdo)
+Para IMÓVEIS RURAIS, extraia os segmentos com rumos/azimutes originais.
+
+Para IMÓVEIS URBANOS simples (frente x lados), extraia as dimensões.
 
 Retorne os dados em formato JSON estruturado:
 {
@@ -128,7 +136,7 @@ Retorne os dados em formato JSON estruturado:
   "segments": [
     {
       "index": number,
-      "bearingRaw": "string (formato original do documento)",
+      "bearingRaw": "string (formato original ou 'Az X°' se calculado de deflexão)",
       "distanceM": number,
       "confrontation": "string"
     }
@@ -145,11 +153,20 @@ Retorne os dados em formato JSON estruturado:
   } | null
 }
 
-IMPORTANTE para geolocalização:
-- Extraia TODA informação de localização disponível (rua, rodovia, km, bairro, cidade, estado)
-- Para imóveis rurais, a rodovia/estrada com km é MUITO importante para localização
-- Exemplo de "road": "Rodovia SP 261 km 55 + 200m"
+REGRAS PARA DEFLEXÃO (converter para segmentos):
+- Se a descrição usa "deflete", gere SEGMENTS (não urbanDimensions)
+- Azimute inicial: 90° (frente para o leste, padrão)
+- "deflete à direita" ou "deflete para direita": azimute += 90°
+- "deflete à esquerda" ou "deflete para esquerda": azimute -= 90°
+- Normalize o azimute entre 0° e 360°
+- Exemplo: "12m, deflete à esquerda, 8.5m, deflete à direita, 12m, deflete à direita, 8.5m"
+  Gera: [Az 90° 12m], [Az 0° 8.5m], [Az 90° 12m], [Az 180° 8.5m]
 
+IMPORTANTE para geolocalização:
+- Extraia TODA informação de localização disponível
+- Para urbanos: "Rua X, número Y, Bairro Z, Cidade-UF"
+- Para rurais: "Fazenda X, Rodovia SP 261 km 55, Município-UF"
+- O endereço completo vai ser usado para buscar a localização no mapa!
 IMPORTANTE sobre coordenadas UTM:
 - Coordenadas UTM aparecem como N= (Norte/Y) e E= (Este/X)
 - Exemplo: "N= 7382536.544 e E= 283131.811"
