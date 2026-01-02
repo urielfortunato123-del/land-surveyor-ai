@@ -2,9 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { 
+import {
   MapPin, 
   ArrowLeft, 
   Download, 
@@ -14,7 +12,6 @@ import {
   AlertCircle,
   Cpu,
   ChevronDown,
-  Settings,
   Eye,
   EyeOff,
   Info,
@@ -23,8 +20,7 @@ import {
 } from 'lucide-react';
 import { useGeocoding } from '@/hooks/useGeocoding';
 import { motion } from 'framer-motion';
-import { MapContainer, TileLayer, Polygon, CircleMarker, Tooltip, Popup } from 'react-leaflet';
-import MapboxMap from '@/components/MapboxMap';
+import OSMMap from '@/components/OSMMap';
 import { MapErrorBoundary } from '@/components/MapErrorBoundary';
 import SegmentEditor from '@/components/SegmentEditor';
 import ExportDialog from '@/components/ExportDialog';
@@ -145,10 +141,6 @@ const ProjectResult = () => {
 
   const quality = result ? getQualityIndicator(result) : null;
   
-  // Mapbox token state
-  const [mapboxToken, setMapboxToken] = useState('');
-  const [showTokenInput, setShowTokenInput] = useState(true);
-  const [useMapbox, setUseMapbox] = useState(false);
   const [showLabels, setShowLabels] = useState(true);
   
   // Geocoding state for "Ver no Mapa"
@@ -166,16 +158,6 @@ const ProjectResult = () => {
         mapCoords.reduce((sum, c) => sum + c[1], 0) / mapCoords.length,
       ]
     : [-23.5505, -46.6333];
-
-  // For Mapbox, we need lng,lat order
-  const mapboxCoords: [number, number][] = mapCoords.map(([lat, lng]) => [lng, lat]);
-
-  const handleApplyToken = () => {
-    if (mapboxToken.startsWith('pk.')) {
-      setUseMapbox(true);
-      setShowTokenInput(false);
-    }
-  };
 
   // Handle "Ver no Mapa" - geocode address and show map at location
   const handleViewOnMap = async () => {
@@ -199,11 +181,6 @@ const ProjectResult = () => {
     if (location) {
       setGeocodedLocation({ lat: location.lat, lng: location.lng });
       setShowLocationMap(true);
-      // Auto-apply mapbox if token exists
-      if (mapboxToken.startsWith('pk.')) {
-        setUseMapbox(true);
-        setShowTokenInput(false);
-      }
     }
   };
 
@@ -310,40 +287,12 @@ const ProjectResult = () => {
                   </div>
                   <div className="h-[400px]">
                     <MapErrorBoundary>
-                      {useMapbox && mapboxToken ? (
-                        <MapboxMap
-                          accessToken={mapboxToken}
-                          coordinates={[]}
-                          segments={[]}
-                          center={[geocodedLocation.lng, geocodedLocation.lat]}
-                          zoom={15}
-                        />
-                      ) : (
-                        <MapContainer
-                          center={[geocodedLocation.lat, geocodedLocation.lng]}
-                          zoom={15}
-                          className="w-full h-full"
-                        >
-                          <TileLayer
-                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                          />
-                          <CircleMarker
-                            center={[geocodedLocation.lat, geocodedLocation.lng]}
-                            radius={12}
-                            pathOptions={{
-                              color: 'hsl(175, 60%, 40%)',
-                              fillColor: 'hsl(175, 60%, 40%)',
-                              fillOpacity: 0.8,
-                            }}
-                          >
-                            <Popup>
-                              <strong>{extractedData?.city}</strong>
-                              {extractedData?.state && <><br />{extractedData.state}</>}
-                            </Popup>
-                          </CircleMarker>
-                        </MapContainer>
-                      )}
+                      <OSMMap
+                        coordinates={[]}
+                        center={[geocodedLocation.lat, geocodedLocation.lng]}
+                        zoom={15}
+                        markerOnly
+                      />
                     </MapErrorBoundary>
                   </div>
                 </div>
@@ -403,48 +352,6 @@ const ProjectResult = () => {
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        {/* Mapbox Token Input */}
-        {showTokenInput && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="glass-card rounded-xl p-4 mb-6"
-          >
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
-                <MapPin className="w-5 h-5 text-accent" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-medium text-foreground mb-1">Configurar Mapbox (Opcional)</h3>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Para usar imagens de satélite de alta qualidade, insira seu token público do Mapbox.
-                  <a 
-                    href="https://account.mapbox.com/access-tokens/" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-accent hover:underline ml-1"
-                  >
-                    Obter token gratuito →
-                  </a>
-                </p>
-                <div className="flex gap-2">
-                  <Input
-                    value={mapboxToken}
-                    onChange={(e) => setMapboxToken(e.target.value)}
-                    placeholder="pk.eyJ1Ijoi..."
-                    className="max-w-md font-mono text-sm"
-                  />
-                  <Button onClick={handleApplyToken} disabled={!mapboxToken.startsWith('pk.')}>
-                    Aplicar
-                  </Button>
-                  <Button variant="ghost" onClick={() => setShowTokenInput(false)}>
-                    Usar OpenStreetMap
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
 
         <div className="grid lg:grid-cols-2 gap-6">
           {/* Map Section */}
@@ -468,89 +375,21 @@ const ProjectResult = () => {
                     {showLabels ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                     <span className="ml-1 text-xs">Rótulos</span>
                   </Button>
-                  {!showTokenInput && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => setShowTokenInput(true)}
-                    >
-                      <Settings className="w-4 h-4" />
-                    </Button>
-                  )}
                 </div>
               </div>
               <div className="flex-1 relative min-h-[400px]">
                 <MapErrorBoundary>
-                  {useMapbox && mapboxToken ? (
-                    <MapboxMap
-                      accessToken={mapboxToken}
-                      coordinates={mapboxCoords}
-                      segments={segments.map(seg => ({
-                        index: seg.index,
-                        name: (seg as any).customName || `P${seg.index}`,
-                        distance: seg.distanceM,
-                        bearing: seg.bearingRaw,
-                        color: (seg as any).lineStyle?.color,
-                        lineWidth: (seg as any).lineStyle?.width,
-                        lineStyle: (seg as any).lineStyle?.style,
-                      }))}
-                      center={geocodedLocation ? [geocodedLocation.lng, geocodedLocation.lat] : undefined}
-                      showLabels={showLabels}
-                    />
-                  ) : (
-                    <MapContainer
-                      center={geocodedLocation ? [geocodedLocation.lat, geocodedLocation.lng] : center}
-                      zoom={16}
-                      className="w-full h-full"
-                      style={{ background: 'hsl(var(--secondary))' }}
-                    >
-                      <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                      />
-                      <Polygon
-                        positions={mapCoords as [number, number][]}
-                        pathOptions={{
-                          color: 'hsl(175, 60%, 40%)',
-                          fillColor: 'hsl(175, 60%, 40%)',
-                          fillOpacity: 0.2,
-                          weight: 3,
-                        }}
-                      />
-                      {showLabels && mapCoords.slice(0, -1).map((coord, i) => (
-                        <CircleMarker
-                          key={i}
-                          center={coord as [number, number]}
-                          radius={8}
-                          pathOptions={{
-                            color: 'hsl(215, 80%, 25%)',
-                            fillColor: 'hsl(215, 80%, 35%)',
-                            fillOpacity: 1,
-                            weight: 2,
-                          }}
-                        >
-                          <Tooltip permanent direction="top" offset={[0, -10]}>
-                            <span className="font-bold">{(segments[i] as any)?.customName || `P${i + 1}`}</span>
-                          </Tooltip>
-                          <Popup>
-                            <div className="text-sm">
-                              <strong>Ponto {i + 1}</strong>
-                              <br />
-                              {segments[i] && (
-                                <>
-                                  <span className="text-muted-foreground">Rumo: </span>
-                                  {segments[i].bearingRaw}
-                                  <br />
-                                  <span className="text-muted-foreground">Dist: </span>
-                                  {segments[i].distanceM}m
-                                </>
-                              )}
-                            </div>
-                          </Popup>
-                        </CircleMarker>
-                      ))}
-                    </MapContainer>
-                  )}
+                  <OSMMap
+                    coordinates={mapCoords as [number, number][]}
+                    segments={segments.map(seg => ({
+                      index: seg.index,
+                      name: (seg as any).customName || `P${seg.index}`,
+                      distance: seg.distanceM,
+                      bearing: seg.bearingRaw,
+                    }))}
+                    center={geocodedLocation ? [geocodedLocation.lat, geocodedLocation.lng] : center}
+                    showLabels={showLabels}
+                  />
                 </MapErrorBoundary>
               </div>
             </div>
