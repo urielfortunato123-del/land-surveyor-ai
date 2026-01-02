@@ -214,18 +214,18 @@ IMPORTANTE: Todas as alterações são registradas em log de auditoria com data/
         console.log('Extracting text from PDF...');
         const pdfText = extractPdfText(fileAttachment.base64);
         
-        if (pdfText && pdfText.length > 50) {
+        if (pdfText && pdfText.length > 10) {
           console.log('PDF text extracted, length:', pdfText.length);
           messages.push({
             role: 'user',
             content: `${message}\n\n--- CONTEÚDO DO DOCUMENTO PDF "${fileAttachment.name}" ---\n${pdfText}\n--- FIM DO DOCUMENTO ---\n\nAnalise o texto acima e extraia os rumos, distâncias e confrontantes. Compare com os segmentos atuais e faça as correções necessárias.`
           });
         } else {
-          // PDF text extraction failed or returned too little, try to inform user
-          console.log('PDF text extraction returned insufficient text, trying alternative approach');
+          // PDF text extraction failed, try to inform user
+          console.log('PDF text extraction returned insufficient text');
           messages.push({
             role: 'user',
-            content: `${message}\n\n[O usuário enviou o PDF "${fileAttachment.name}" mas não foi possível extrair texto suficiente. O PDF pode estar escaneado como imagem. Por favor, peça ao usuário para enviar uma FOTO ou IMAGEM do documento, ou copiar e colar o texto dos rumos e distâncias manualmente.]`
+            content: `${message}\n\n[O usuário enviou o PDF "${fileAttachment.name}" mas não foi possível extrair texto. O PDF pode estar escaneado como imagem. Por favor, peça ao usuário para enviar uma FOTO ou IMAGEM do documento, ou copiar e colar o texto dos rumos e distâncias manualmente.]`
           });
         }
       } else {
