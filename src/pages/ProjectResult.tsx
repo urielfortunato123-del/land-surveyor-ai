@@ -617,6 +617,7 @@ const ProjectResult = () => {
       {result && (
         <AIAssistantChat
           segments={segments}
+          projectId={id}
           propertyData={{
             matricula: extractedData?.matricula,
             owner: extractedData?.owner,

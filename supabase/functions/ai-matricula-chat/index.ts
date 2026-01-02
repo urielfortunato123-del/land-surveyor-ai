@@ -69,37 +69,42 @@ ${segments.map(s => `P${s.index}: Rumo ${s.bearingRaw}, Distância ${s.distanceM
 SUAS CAPACIDADES:
 1. ANALISAR DOCUMENTOS: Quando o usuário enviar imagens/PDFs de matrículas, extraia os dados e compare com os segmentos atuais
 2. CORRIGIR AUTOMATICAMENTE: Se encontrar diferenças entre o documento e os dados do sistema, corrija automaticamente
-3. CORRIGIR RUMOS: Se o usuário pedir para corrigir um rumo específico
-4. CORRIGIR DISTÂNCIAS: Se o usuário pedir para corrigir uma distância
-5. EXPLICAR PROBLEMAS: Explicar por que o erro de fechamento está alto
-6. SUGERIR CORREÇÕES: Baseado nos dados, sugerir correções
+3. CORRIGIR RUMOS/DISTÂNCIAS: Quando o usuário pedir correções específicas
+4. ACEITAR ALTERAÇÕES MANUAIS: Se o usuário insistir em uma alteração mesmo que não esteja na matrícula, você PODE fazer, mas deve marcar como "requiresConfirmation: true" com um aviso
 
-REGRAS PARA ANÁLISE DE DOCUMENTOS:
-- Extraia TODOS os rumos e distâncias do documento
-- Compare cada segmento com os dados atuais
-- Se houver diferenças, CORRIJA automaticamente no updatedSegments
-- Informe ao usuário exatamente o que foi encontrado e corrigido
+REGRAS PARA ALTERAÇÕES DE RISCO:
+- Se o usuário pedir uma alteração que PARECE incorreta ou não condiz com os dados da matrícula original:
+  - Avise que isso pode não estar correto
+  - Marque "requiresConfirmation": true
+  - Adicione um "warningMessage" explicando o risco
+  - Inclua os segmentos alterados em "updatedSegments"
+  - O sistema mostrará botões de confirmação para o usuário
+  
+- Se a alteração parece CORRETA (baseada em análise de documento ou correção óbvia):
+  - Marque "requiresConfirmation": false
+  - Aplique diretamente
 
 FORMATO DE RUMOS (normalizados):
 - Use SEMPRE o formato "Az NNN°MM'SS\"" (ex: "Az 45°30'15\\"")
-- Converta qualquer formato de entrada para este padrão
-
-REGRAS DE RESPOSTA:
-- Responda SEMPRE em português brasileiro
-- Seja claro sobre o que encontrou no documento
-- Liste as diferenças encontradas e as correções feitas
-- Se não conseguir ler o documento, peça uma imagem mais clara
 
 FORMATO DE RESPOSTA JSON:
 {
-  "response": "Sua mensagem descrevendo o que encontrou e corrigiu",
-  "updatedSegments": [...] // Array COMPLETO de segmentos com correções, ou null se não houver mudanças
+  "response": "Sua mensagem descrevendo o que encontrou/fez",
+  "updatedSegments": [...] // Array COMPLETO de segmentos, ou null
+  "requiresConfirmation": true/false,
+  "warningMessage": "Aviso sobre o risco da alteração",
+  "changeDescription": "Descrição técnica da alteração para o log"
 }
 
-IMPORTANTE sobre updatedSegments:
-- SEMPRE retorne o array COMPLETO de segmentos quando fizer alterações
-- Mantenha todos os campos originais, apenas modifique o necessário
-- Recalcule deltaX e deltaY para cada segmento alterado`;
+EXEMPLOS:
+
+1. Alteração segura (correção baseada em documento):
+{"response": "Encontrei que o rumo do P2 no documento é 90°, diferente do atual 45°. Corrigindo...", "updatedSegments": [...], "requiresConfirmation": false, "changeDescription": "Correção de rumo P2: 45° -> 90° (conforme documento)"}
+
+2. Alteração de risco (usuário pediu algo que não está no documento):
+{"response": "Você está pedindo para alterar o P3 para 180°, mas na matrícula consta 270°. Isso não corresponde ao documento original. Deseja prosseguir mesmo assim?", "updatedSegments": [...], "requiresConfirmation": true, "warningMessage": "Alteração não corresponde à matrícula original (270° -> 180°)", "changeDescription": "Alteração manual P3: 270° -> 180° (a pedido do usuário)"}
+
+IMPORTANTE: Todas as alterações são registradas em log de auditoria com data/hora/usuário. Informe isso ao usuário quando relevante.`;
 
     // Build messages array
     const messages: any[] = [
@@ -186,9 +191,16 @@ IMPORTANTE sobre updatedSegments:
     console.log('AI response:', content);
 
     // Try to parse JSON response
-    let result: { response: string; updatedSegments: Segment[] | null } = { 
+    let result: { 
+      response: string; 
+      updatedSegments: Segment[] | null;
+      requiresConfirmation?: boolean;
+      warningMessage?: string;
+      changeDescription?: string;
+    } = { 
       response: content, 
-      updatedSegments: null 
+      updatedSegments: null,
+      requiresConfirmation: false
     };
     
     try {
@@ -201,7 +213,7 @@ IMPORTANTE sobre updatedSegments:
       }
     } catch (parseError) {
       console.log('Could not parse as JSON, using raw content');
-      result = { response: content, updatedSegments: null };
+      result = { response: content, updatedSegments: null, requiresConfirmation: false };
     }
 
     // Recalculate azimuth values if segments were updated
@@ -217,6 +229,7 @@ IMPORTANTE sobre updatedSegments:
       });
       
       console.log('Updated segments with recalculated values:', result.updatedSegments.length);
+      console.log('Requires confirmation:', result.requiresConfirmation);
     }
 
     return new Response(
