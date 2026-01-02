@@ -2,6 +2,7 @@
 // This is a simple in-memory store. In production, you'd use Supabase.
 
 import { Segment, ParcelResult, Warning } from '@/types';
+import { convertExtractedUTMToLatLng } from './utmConverter';
 
 // Urban property dimensions (simple format: front x sides)
 export interface UrbanDimensions {
@@ -15,6 +16,16 @@ export interface UrbanDimensions {
   leftConfrontation: string;
 }
 
+// UTM coordinates extracted from the document
+export interface UTMCoordinates {
+  zone: number | null;
+  hemisphere: 'N' | 'S';
+  firstVertex: {
+    n: number;
+    e: number;
+  } | null;
+}
+
 export interface ExtractedMatriculaData {
   matricula?: string;
   owner?: string;
@@ -24,6 +35,8 @@ export interface ExtractedMatriculaData {
   areaDeclared?: number;
   perimeterDeclared?: number;
   propertyType?: 'rural' | 'urbano';
+  // UTM coordinates for georeferencing
+  utmCoordinates?: UTMCoordinates | null;
   // Rural properties: full geometric description
   segments: Array<{
     index: number;
@@ -41,6 +54,8 @@ interface ProjectData {
   extractedData: ExtractedMatriculaData | null;
   processedAt: Date;
   rawImages?: string[];
+  // Cached lat/lng from UTM conversion
+  geoLocation?: { lat: number; lng: number } | null;
 }
 
 // In-memory store (temporary - replace with Supabase in production)
@@ -49,12 +64,23 @@ const projectStore: Map<string, ProjectData> = new Map();
 export const extractedDataStore = {
   save(projectId: string, data: Partial<ProjectData>) {
     const existing = projectStore.get(projectId);
+    
+    // Convert UTM coordinates to lat/lng if available
+    let geoLocation = data.geoLocation || existing?.geoLocation;
+    if (data.extractedData?.utmCoordinates && !geoLocation) {
+      geoLocation = convertExtractedUTMToLatLng(
+        data.extractedData.utmCoordinates,
+        data.extractedData.state
+      );
+    }
+    
     projectStore.set(projectId, {
       id: projectId,
       title: data.title || existing?.title || '',
       extractedData: data.extractedData ?? existing?.extractedData ?? null,
       processedAt: new Date(),
       rawImages: data.rawImages || existing?.rawImages,
+      geoLocation,
     });
   },
 
@@ -64,6 +90,10 @@ export const extractedDataStore = {
 
   getExtractedData(projectId: string): ExtractedMatriculaData | null {
     return projectStore.get(projectId)?.extractedData ?? null;
+  },
+
+  getGeoLocation(projectId: string): { lat: number; lng: number } | null {
+    return projectStore.get(projectId)?.geoLocation ?? null;
   },
 
   // Convert extracted segments to the app's Segment type
