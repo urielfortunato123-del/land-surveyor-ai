@@ -11,6 +11,14 @@ interface Segment {
   bearingAzimuth?: number;
   distanceM: number;
   confrontation?: string;
+  deltaX?: number;
+  deltaY?: number;
+}
+
+interface FileAttachment {
+  name: string;
+  type: string;
+  base64: string;
 }
 
 interface RequestBody {
@@ -25,6 +33,7 @@ interface RequestBody {
     closureError?: number;
   };
   conversationHistory: Array<{ role: string; content: string }>;
+  fileAttachment?: FileAttachment;
 }
 
 serve(async (req) => {
@@ -39,10 +48,11 @@ serve(async (req) => {
     }
 
     const body: RequestBody = await req.json();
-    const { message, segments, propertyData, conversationHistory } = body;
+    const { message, segments, propertyData, conversationHistory, fileAttachment } = body;
 
     console.log('Chat message received:', message);
     console.log('Current segments:', segments.length);
+    console.log('Has file attachment:', !!fileAttachment);
 
     const systemPrompt = `Você é um assistente especialista em georreferenciamento e análise de matrículas de imóveis brasileiros.
 
@@ -53,47 +63,84 @@ CONTEXTO ATUAL:
 - Área declarada: ${propertyData.area ? propertyData.area + ' m²' : 'N/A'}
 - Erro de fechamento atual: ${propertyData.closureError?.toFixed(2) || 'N/A'} metros
 
-SEGMENTOS ATUAIS:
+SEGMENTOS ATUAIS DO SISTEMA:
 ${segments.map(s => `P${s.index}: Rumo ${s.bearingRaw}, Distância ${s.distanceM}m, Confrontante: ${s.confrontation || 'N/A'}`).join('\n')}
 
 SUAS CAPACIDADES:
-1. CORRIGIR RUMOS: Se o usuário disser "o rumo do P3 está errado, deveria ser 45°", você atualiza o bearingRaw do segmento
-2. CORRIGIR DISTÂNCIAS: Se o usuário disser "a distância do segmento 2 é 25m", você atualiza o distanceM
-3. EXPLICAR PROBLEMAS: Você pode explicar por que o erro de fechamento está alto
-4. SUGERIR CORREÇÕES: Baseado nos dados, você pode sugerir correções
+1. ANALISAR DOCUMENTOS: Quando o usuário enviar imagens/PDFs de matrículas, extraia os dados e compare com os segmentos atuais
+2. CORRIGIR AUTOMATICAMENTE: Se encontrar diferenças entre o documento e os dados do sistema, corrija automaticamente
+3. CORRIGIR RUMOS: Se o usuário pedir para corrigir um rumo específico
+4. CORRIGIR DISTÂNCIAS: Se o usuário pedir para corrigir uma distância
+5. EXPLICAR PROBLEMAS: Explicar por que o erro de fechamento está alto
+6. SUGERIR CORREÇÕES: Baseado nos dados, sugerir correções
+
+REGRAS PARA ANÁLISE DE DOCUMENTOS:
+- Extraia TODOS os rumos e distâncias do documento
+- Compare cada segmento com os dados atuais
+- Se houver diferenças, CORRIJA automaticamente no updatedSegments
+- Informe ao usuário exatamente o que foi encontrado e corrigido
+
+FORMATO DE RUMOS (normalizados):
+- Use SEMPRE o formato "Az NNN°MM'SS\"" (ex: "Az 45°30'15\\"")
+- Converta qualquer formato de entrada para este padrão
 
 REGRAS DE RESPOSTA:
 - Responda SEMPRE em português brasileiro
-- Seja conciso e claro
-- Se fizer alterações, descreva exatamente o que mudou
-- Se não entender o pedido, peça esclarecimentos
+- Seja claro sobre o que encontrou no documento
+- Liste as diferenças encontradas e as correções feitas
+- Se não conseguir ler o documento, peça uma imagem mais clara
 
 FORMATO DE RESPOSTA JSON:
 {
-  "response": "Sua mensagem de resposta para o usuário",
-  "updatedSegments": [...] // Array de segmentos COMPLETO com as correções, ou null se não houver mudanças
+  "response": "Sua mensagem descrevendo o que encontrou e corrigiu",
+  "updatedSegments": [...] // Array COMPLETO de segmentos com correções, ou null se não houver mudanças
 }
 
 IMPORTANTE sobre updatedSegments:
-- Se você fizer QUALQUER alteração, retorne o array COMPLETO de segmentos
-- Mantenha todos os campos originais, apenas modifique o que foi pedido
-- Para rumos, use o formato "Az NNN°MM'SS\"" (ex: "Az 45°0'0\\"")
-- Para distâncias, use números em metros
+- SEMPRE retorne o array COMPLETO de segmentos quando fizer alterações
+- Mantenha todos os campos originais, apenas modifique o necessário
+- Recalcule deltaX e deltaY para cada segmento alterado`;
 
-EXEMPLOS:
-Usuário: "o rumo do P2 deveria ser 90 graus"
-Resposta: {"response": "Corrigi o rumo do P2 de 314°55'44\\" para 90°. Isso deve melhorar o fechamento do polígono.", "updatedSegments": [...]}
-
-Usuário: "qual é o problema do polígono?"
-Resposta: {"response": "Analisando os segmentos...", "updatedSegments": null}`;
-
-    const messages = [
+    // Build messages array
+    const messages: any[] = [
       { role: 'system', content: systemPrompt },
-      ...conversationHistory.slice(-10), // Keep last 10 messages for context
-      { role: 'user', content: message }
+      ...conversationHistory.slice(-10),
     ];
 
-    console.log('Calling AI with context');
+    // Add user message with file if present
+    if (fileAttachment) {
+      const isImage = fileAttachment.type.startsWith('image/');
+      
+      if (isImage) {
+        // For images, use vision capability
+        messages.push({
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: message
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:${fileAttachment.type};base64,${fileAttachment.base64}`
+              }
+            }
+          ]
+        });
+      } else {
+        // For PDFs/docs, we'll describe what was sent and ask AI to work with the text
+        // Note: In production, you'd want to use a document parsing service
+        messages.push({
+          role: 'user',
+          content: `${message}\n\n[O usuário enviou um arquivo: ${fileAttachment.name} (${fileAttachment.type}). Como não posso visualizar PDFs diretamente, peça ao usuário para enviar uma foto/imagem do documento ou copiar o texto dos rumos e distâncias.]`
+        });
+      }
+    } else {
+      messages.push({ role: 'user', content: message });
+    }
+
+    console.log('Calling AI with context, has image:', !!fileAttachment?.type?.startsWith('image/'));
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -109,6 +156,9 @@ Resposta: {"response": "Analisando os segmentos...", "updatedSegments": null}`;
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('AI gateway error:', response.status, errorText);
+      
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ 
@@ -165,6 +215,8 @@ Resposta: {"response": "Analisando os segmentos...", "updatedSegments": null}`;
           deltaY: seg.distanceM * Math.cos(azimuth * Math.PI / 180),
         };
       });
+      
+      console.log('Updated segments with recalculated values:', result.updatedSegments.length);
     }
 
     return new Response(
@@ -185,7 +237,9 @@ Resposta: {"response": "Analisando os segmentos...", "updatedSegments": null}`;
 
 // Helper function to parse bearing to azimuth
 function parseBearingToAzimuth(bearing: string): number {
-  // Try Az format first
+  if (!bearing) return 0;
+  
+  // Try Az format first (Az 123°45'30")
   const azMatch = bearing.match(/Az\.?\s*(\d+)[°]?\s*(\d+)?['′]?\s*(\d+)?["″]?/i);
   if (azMatch) {
     const deg = parseFloat(azMatch[1]);
@@ -194,7 +248,7 @@ function parseBearingToAzimuth(bearing: string): number {
     return deg + min / 60 + sec / 3600;
   }
   
-  // Try direct azimuth format
+  // Try direct azimuth format (123°45'30")
   const directAzMatch = bearing.match(/^(\d+)[°]\s*(\d+)?['′]?\s*(\d+)?["″]?$/);
   if (directAzMatch) {
     const deg = parseFloat(directAzMatch[1]);
@@ -203,7 +257,7 @@ function parseBearingToAzimuth(bearing: string): number {
     return deg + min / 60 + sec / 3600;
   }
   
-  // Parse quadrant bearings
+  // Parse quadrant bearings (N 45°30' E, S 30°15' W, etc.)
   const quadrantMatch = bearing.match(/([NS])\s*(\d+)[°]?\s*(\d+)?['′]?\s*(\d+)?["″]?\s*([EW])/i);
   if (quadrantMatch) {
     const ns = quadrantMatch[1].toUpperCase();
@@ -218,6 +272,12 @@ function parseBearingToAzimuth(bearing: string): number {
     if (ns === 'N' && ew === 'W') return 360 - angle;
     if (ns === 'S' && ew === 'E') return 180 - angle;
     if (ns === 'S' && ew === 'W') return 180 + angle;
+  }
+
+  // Try to extract just numbers
+  const numMatch = bearing.match(/(\d+(?:\.\d+)?)/);
+  if (numMatch) {
+    return parseFloat(numMatch[1]);
   }
 
   return 0;
