@@ -21,8 +21,10 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { aiMatriculaApi } from '@/lib/api/ai-matricula';
 import { extractedDataStore } from '@/lib/extractedDataStore';
+import { supabase } from '@/integrations/supabase/client';
 import {
   Tabs,
   TabsContent,
