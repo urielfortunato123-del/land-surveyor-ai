@@ -206,7 +206,7 @@ const ProjectUpload = () => {
         // Process from pasted text
         addLog('Analisando texto colado...');
         setProgress(25);
-        addLog('Enviando para análise com IA (Gemini Pro)...');
+        addLog('Enviando para análise com IA...');
         setProgress(35);
         response = await aiMatriculaApi.extractFromText(pastedText);
       } else {
@@ -216,7 +216,7 @@ const ProjectUpload = () => {
         const base64Data = await fileToBase64(firstFile.file);
         setProgress(25);
         addLog('Arquivo convertido para processamento');
-        addLog('Enviando para análise com IA (Gemini Pro Vision)...');
+        addLog('Enviando para análise com IA (Visão)...');
         setProgress(35);
         response = await aiMatriculaApi.extractFromImage(base64Data);
       }
