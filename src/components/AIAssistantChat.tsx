@@ -97,7 +97,7 @@ Como posso ajudar?`,
 
       // Use type assertion since the table was just created and types aren't regenerated yet
       await (supabase.from('segment_audit_logs') as any).insert({
-        user_id: user.id,
+        user_id: userId,
         project_id: projectId,
         matricula: propertyData.matricula,
         owner_name: propertyData.owner,
