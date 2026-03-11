@@ -367,9 +367,9 @@ Retorne em JSON:
       }
     }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('AI error:', response.status, errorText);
+    if (!response || !response.ok) {
+      console.error('AI error: all models failed. Last error:', lastError);
+      
       
       if (response.status === 429) {
         return new Response(
