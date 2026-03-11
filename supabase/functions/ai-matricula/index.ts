@@ -299,23 +299,18 @@ Retorne em JSON:
         throw new Error(`Ação desconhecida: ${action}`);
     }
 
-    console.log(`Calling Google AI Studio with model: ${model}`);
+    console.log(`Calling OpenRouter with model: qwen/qwen3-coder:free`);
 
-    // Map model names for Google AI Studio
-    const modelMap: Record<string, string> = {
-      'google/gemini-2.5-pro': 'gemini-2.5-pro',
-      'google/gemini-2.5-flash': 'gemini-2.5-flash',
-    };
-    const googleModel = modelMap[model] || 'gemini-2.5-flash';
-    
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/chat/completions', {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GOOGLE_AI_API_KEY}`,
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'HTTP-Referer': 'https://plot-parse-forge.lovable.app',
+        'X-OpenRouter-Title': 'GeoMatricula',
       },
       body: JSON.stringify({
-        model: googleModel,
+        model: 'qwen/qwen3-coder:free',
         messages,
         temperature: 0.3,
       }),
