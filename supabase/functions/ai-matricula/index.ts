@@ -299,7 +299,12 @@ Retorne em JSON:
         throw new Error(`Ação desconhecida: ${action}`);
     }
 
-    console.log(`Calling OpenRouter with model: qwen/qwen3-coder:free`);
+    // Use vision-capable model for image tasks, text model otherwise
+    const hasImageContent = messages.some(m => 
+      Array.isArray(m.content) && m.content.some((c: any) => c.type === 'image_url')
+    );
+    const selectedModel = hasImageContent ? 'qwen/qwen-2.5-vl-72b-instruct:free' : 'qwen/qwen3-coder:free';
+    console.log(`Calling OpenRouter with model: ${selectedModel}`);
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -310,7 +315,7 @@ Retorne em JSON:
         'X-OpenRouter-Title': 'GeoMatricula',
       },
       body: JSON.stringify({
-        model: 'qwen/qwen3-coder:free',
+        model: selectedModel,
         messages,
         temperature: 0.3,
       }),
