@@ -101,6 +101,7 @@ const ProjectUpload = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [projectName, setProjectName] = useState(id === 'new' ? '' : 'Matrícula 12.345');
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [pastedText, setPastedText] = useState('');
