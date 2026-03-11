@@ -300,12 +300,14 @@ Retorne em JSON:
     }
 
     // All requests go through OpenRouter
-    // Vision tasks use a vision-capable model, text tasks use GLM
     const hasImageContent = messages.some(m =>
       Array.isArray(m.content) && m.content.some((c: any) => c.type === 'image_url')
     );
-    const selectedModel = hasImageContent ? 'google/gemma-3-27b-it:free' : 'z-ai/glm-4.5-air:free';
-    console.log(`Calling OpenRouter with model: ${selectedModel}`);
+    
+    // Fallback chain: try free models first, then paid
+    const modelChain = hasImageContent 
+      ? ['google/gemma-3-27b-it:free', 'meta-llama/llama-4-maverick:free', 'google/gemini-2.5-flash-preview:thinking']
+      : ['z-ai/glm-4.5-air:free', 'deepseek/deepseek-chat-v3-0324:free', 'google/gemini-2.5-flash-preview:thinking'];
 
     // Gemma doesn't support system messages — merge into first user message
     let apiMessages = messages;
@@ -328,20 +330,42 @@ Retorne em JSON:
       }
     }
 
-    let response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'HTTP-Referer': 'https://plot-parse-forge.lovable.app',
-        'X-OpenRouter-Title': 'GeoMatricula',
-      },
-      body: JSON.stringify({
-        model: selectedModel,
-        messages: apiMessages,
-        temperature: 0.3,
-      }),
-    });
+    let response: Response | null = null;
+    let lastError = '';
+
+    for (const modelToTry of modelChain) {
+      console.log(`Trying model: ${modelToTry}`);
+      
+      // For non-free models, use original messages (they support system role)
+      const msgsToSend = modelToTry.includes(':free') ? apiMessages : messages;
+
+      response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'HTTP-Referer': 'https://plot-parse-forge.lovable.app',
+          'X-OpenRouter-Title': 'GeoMatricula',
+        },
+        body: JSON.stringify({
+          model: modelToTry,
+          messages: msgsToSend,
+          temperature: 0.3,
+        }),
+      });
+
+      if (response.ok) {
+        console.log(`Success with model: ${modelToTry}`);
+        break;
+      }
+
+      lastError = await response.text();
+      console.warn(`Model ${modelToTry} failed (${response.status}): ${lastError}`);
+      
+      if (response.status !== 429 && response.status !== 503) {
+        break; // Only retry on rate limit or service unavailable
+      }
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
