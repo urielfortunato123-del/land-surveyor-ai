@@ -414,7 +414,7 @@ const LandingPage = () => {
                     </li>
                   ))}
                 </ul>
-                <Link to="/auth" className="block">
+                <Link to="/dashboard" className="block">
                   <Button variant={plan.popular ? 'hero' : 'outline'} className="w-full">
                     {plan.name === 'Enterprise' ? 'Fale Conosco' : 'Começar Agora'}
                   </Button>
