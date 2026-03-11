@@ -303,7 +303,7 @@ Retorne em JSON:
     const hasImageContent = messages.some(m => 
       Array.isArray(m.content) && m.content.some((c: any) => c.type === 'image_url')
     );
-    const selectedModel = hasImageContent ? 'qwen/qwen2.5-vl-72b-instruct:free' : 'qwen/qwen3-coder:free';
+    const selectedModel = hasImageContent ? 'meta-llama/llama-3.2-11b-vision-instruct:free' : 'qwen/qwen3-coder:free';
     console.log(`Calling OpenRouter with model: ${selectedModel}`);
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {

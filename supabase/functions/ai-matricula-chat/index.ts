@@ -239,7 +239,12 @@ IMPORTANTE: Todas as alterações são registradas em log de auditoria com data/
       messages.push({ role: 'user', content: message });
     }
 
-    console.log('Calling AI with context, has image:', !!fileAttachment?.type?.startsWith('image/'));
+    const hasImageAttachment = !!fileAttachment?.type?.startsWith('image/');
+    const selectedModel = hasImageAttachment
+      ? 'meta-llama/llama-3.2-11b-vision-instruct:free'
+      : 'qwen/qwen3-coder:free';
+
+    console.log('Calling AI with context, has image:', hasImageAttachment, 'model:', selectedModel);
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -250,7 +255,7 @@ IMPORTANTE: Todas as alterações são registradas em log de auditoria com data/
         'X-OpenRouter-Title': 'GeoMatricula',
       },
       body: JSON.stringify({
-        model: 'qwen/qwen3-coder:free',
+        model: selectedModel,
         messages,
         temperature: 0.3,
       }),
