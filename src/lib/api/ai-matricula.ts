@@ -68,7 +68,24 @@ async function callAI<T>(body: Record<string, unknown>): Promise<AIResponse<T>> 
 
   if (error) {
     console.error('AI function error:', error);
-    return { success: false, error: error.message };
+    const msg = error.message || '';
+    
+    if (msg.includes('402') || msg.toLowerCase().includes('crédito') || msg.toLowerCase().includes('payment')) {
+      return { success: false, error: 'Créditos de IA insuficientes. Adicione créditos no seu workspace Lovable (Settings → Workspace → Usage).' };
+    }
+    if (msg.includes('429') || msg.toLowerCase().includes('rate limit')) {
+      return { success: false, error: 'Muitas requisições. Aguarde alguns segundos e tente novamente.' };
+    }
+    
+    return { success: false, error: msg || 'Erro na chamada de IA' };
+  }
+
+  if (data?.error) {
+    const errMsg = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
+    if (errMsg.toLowerCase().includes('crédito') || errMsg.includes('402')) {
+      return { success: false, error: 'Créditos de IA insuficientes. Adicione créditos no seu workspace Lovable (Settings → Workspace → Usage).' };
+    }
+    return { success: false, error: errMsg };
   }
 
   return data;
