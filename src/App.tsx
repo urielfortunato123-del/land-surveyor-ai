@@ -20,7 +20,7 @@ const App = () => (
       <ErrorBoundary>
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<LandingPage />} />
+            <Route path="/" element={<ProjectUpload />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/project/new" element={<ProjectUpload />} />
             <Route path="/project/:id" element={<ProjectUpload />} />
