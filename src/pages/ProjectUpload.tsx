@@ -271,7 +271,49 @@ const ProjectUpload = () => {
         addLog('⚠️ Não foi possível determinar a localização exata');
       }
 
-      // Save to project history
+      // Save to database
+      if (user) {
+        const { error: projError } = await supabase.from('projects').upsert({
+          id: projectId,
+          user_id: user.id,
+          title: projectName || `Matrícula ${extractedData.matricula || 'Nova'}`,
+          matricula_number: extractedData.matricula || null,
+          owner_name: extractedData.owner || null,
+          property_address: (extractedData as any).propertyAddress || null,
+          registry_office: extractedData.registryOffice || null,
+          city: extractedData.city || null,
+          state: extractedData.state || null,
+          status: 'processed',
+        });
+
+        if (projError) {
+          console.error('Error saving project:', projError);
+          addLog('⚠️ Erro ao salvar projeto no banco');
+        } else {
+          // Save parcel results
+          const parcelResult = extractedDataStore.toParcelResult(projectId, extractedData);
+          const { error: resultError } = await supabase.from('parcel_results').upsert({
+            project_id: projectId,
+            segments_json: parcelResult.segments as any,
+            area_computed: parcelResult.areaComputed,
+            area_declared: extractedData.areaDeclared || null,
+            perimeter_computed: parcelResult.perimeterComputed,
+            closure_error: parcelResult.closureError,
+            confidence_score: parcelResult.confidenceScore,
+            extraction_method: 'ai',
+            warnings_json: parcelResult.warnings as any,
+            geojson: parcelResult.geojson as any,
+          });
+
+          if (resultError) {
+            console.error('Error saving parcel result:', resultError);
+          }
+
+          addLog('✅ Projeto salvo no banco de dados');
+        }
+      }
+
+      // Also save locally for backward compat
       projectHistory.add({
         id: projectId,
         title: projectName || `Matrícula ${extractedData.matricula || 'Nova'}`,

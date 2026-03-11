@@ -10,31 +10,71 @@ import {
   FileText, 
   Clock, 
   Trash2,
-  ChevronRight
+  ChevronRight,
+  LogOut,
+  Loader2
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { projectHistory, ProjectHistoryItem } from '@/lib/projectHistory';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+
+interface ProjectItem {
+  id: string;
+  title: string;
+  matricula_number: string | null;
+  city: string | null;
+  state: string | null;
+  owner_name: string | null;
+  status: string;
+  created_at: string;
+  parcel_results?: { segments_json: any }[];
+}
 
 const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [projects, setProjects] = useState<ProjectHistoryItem[]>([]);
+  const [projects, setProjects] = useState<ProjectItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
-    setProjects(projectHistory.getAll());
-  }, []);
+    if (user) loadProjects();
+  }, [user]);
+
+  const loadProjects = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*, parcel_results(segments_json)')
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('Error loading projects:', error);
+      toast({ title: 'Erro ao carregar projetos', variant: 'destructive' });
+    } else {
+      setProjects(data || []);
+    }
+    setLoading(false);
+  };
 
   const filteredProjects = projects.filter(project =>
     project.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (project.matricula || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (project.matricula_number || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (project.city || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    projectHistory.remove(id);
-    setProjects(projectHistory.getAll());
+    
+    const { error } = await supabase.from('projects').delete().eq('id', id);
+    if (error) {
+      toast({ title: 'Erro ao excluir', variant: 'destructive' });
+    } else {
+      setProjects(prev => prev.filter(p => p.id !== id));
+    }
   };
 
   const formatDate = (dateStr: string) => {
@@ -45,9 +85,18 @@ const Dashboard = () => {
     }
   };
 
+  const getSegmentsCount = (project: ProjectItem) => {
+    const segments = project.parcel_results?.[0]?.segments_json;
+    return Array.isArray(segments) ? segments.length : 0;
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="sticky top-0 z-40 glass-card border-b">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -59,29 +108,31 @@ const Dashboard = () => {
             </Link>
           </div>
 
-          <Button 
-            variant="hero" 
-            onClick={() => navigate('/')}
-          >
-            <Plus className="w-4 h-4" />
-            Novo Projeto
-          </Button>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground hidden sm:block">{user?.email}</span>
+            <Button variant="ghost" size="icon" onClick={handleSignOut} title="Sair">
+              <LogOut className="w-4 h-4" />
+            </Button>
+            <Button variant="hero" onClick={() => navigate('/')}>
+              <Plus className="w-4 h-4" />
+              Novo Projeto
+            </Button>
+          </div>
         </div>
       </header>
 
-      {/* Content */}
       <main className="container mx-auto px-6 py-8 max-w-5xl">
         <div className="mb-8">
           <h1 className="font-display text-3xl font-bold text-foreground mb-2">Seus Projetos</h1>
           <p className="text-muted-foreground">
-            {projects.length > 0 
-              ? `${projects.length} projeto(s) processado(s)`
-              : 'Nenhum projeto ainda. Processe sua primeira matrícula!'
+            {loading ? 'Carregando...' : 
+              projects.length > 0 
+                ? `${projects.length} projeto(s) processado(s)`
+                : 'Nenhum projeto ainda. Processe sua primeira matrícula!'
             }
           </p>
         </div>
 
-        {/* Search */}
         {projects.length > 0 && (
           <div className="relative mb-6 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -94,82 +145,86 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Projects Grid */}
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredProjects.map((project, i) => (
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filteredProjects.map((project, i) => (
+              <motion.div
+                key={project.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+              >
+                <Link to={`/project/${project.id}/result`}>
+                  <div className="glass-card rounded-xl p-5 hover:shadow-lg transition-all group cursor-pointer">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <FileText className="w-6 h-6 text-primary" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={project.status === 'processed' ? 'default' : 'destructive'}>
+                          {project.status === 'processed' ? 'Processado' : project.status}
+                        </Badge>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                          onClick={(e) => handleDelete(project.id, e)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <h3 className="font-display font-semibold text-foreground mb-1 group-hover:text-primary transition-colors truncate">
+                      {project.title}
+                    </h3>
+                    
+                    {(project.city || project.matricula_number) && (
+                      <p className="text-sm text-muted-foreground mb-2 truncate">
+                        {[project.matricula_number, project.city, project.state].filter(Boolean).join(' • ')}
+                      </p>
+                    )}
+
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-4 h-4" />
+                        {formatDate(project.created_at)}
+                      </div>
+                      {getSegmentsCount(project) > 0 && (
+                        <span>{getSegmentsCount(project)} segmentos</span>
+                      )}
+                    </div>
+
+                    <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Ver resultado</span>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                    </div>
+                  </div>
+                </Link>
+              </motion.div>
+            ))}
+
             <motion.div
-              key={project.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
+              transition={{ delay: filteredProjects.length * 0.05 }}
             >
-              <Link to={`/project/${project.id}/result`}>
-                <div className="glass-card rounded-xl p-5 hover:shadow-lg transition-all group cursor-pointer">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <FileText className="w-6 h-6 text-primary" />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={project.status === 'processed' ? 'default' : 'destructive'}>
-                        {project.status === 'processed' ? 'Processado' : 'Erro'}
-                      </Badge>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                        onClick={(e) => handleDelete(project.id, e)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <h3 className="font-display font-semibold text-foreground mb-1 group-hover:text-primary transition-colors truncate">
-                    {project.title}
-                  </h3>
-                  
-                  {(project.city || project.matricula) && (
-                    <p className="text-sm text-muted-foreground mb-2 truncate">
-                      {[project.matricula, project.city, project.state].filter(Boolean).join(' • ')}
-                    </p>
-                  )}
-
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-4 h-4" />
-                      {formatDate(project.createdAt)}
-                    </div>
-                    {project.segmentsCount > 0 && (
-                      <span>{project.segmentsCount} segmentos</span>
-                    )}
-                  </div>
-
-                  <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Ver resultado</span>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                  </div>
+              <button
+                onClick={() => navigate('/')}
+                className="w-full h-full min-h-[200px] rounded-xl border-2 border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex flex-col items-center justify-center gap-3 text-muted-foreground hover:text-primary"
+              >
+                <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center">
+                  <Plus className="w-6 h-6" />
                 </div>
-              </Link>
+                <span className="font-medium">Processar nova matrícula</span>
+              </button>
             </motion.div>
-          ))}
-
-          {/* New project card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: filteredProjects.length * 0.05 }}
-          >
-            <button
-              onClick={() => navigate('/')}
-              className="w-full h-full min-h-[200px] rounded-xl border-2 border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-all flex flex-col items-center justify-center gap-3 text-muted-foreground hover:text-primary"
-            >
-              <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center">
-                <Plus className="w-6 h-6" />
-              </div>
-              <span className="font-medium">Processar nova matrícula</span>
-            </button>
-          </motion.div>
-        </div>
+          </div>
+        )}
       </main>
     </div>
   );
