@@ -299,27 +299,35 @@ Retorne em JSON:
         throw new Error(`Ação desconhecida: ${action}`);
     }
 
-    // OpenRouter model selection with fallback
+    // Detect if request has image content
     const hasImageContent = messages.some(m =>
       Array.isArray(m.content) && m.content.some((c: any) => c.type === 'image_url')
     );
-    const candidateModels = hasImageContent
-      ? [
-          'google/gemma-3-27b-it:free',
-          'meta-llama/llama-3.2-11b-vision-instruct:free',
-          'qwen/qwen2.5-vl-72b-instruct:free',
-        ]
-      : ['qwen/qwen3-coder:free'];
 
-    let response: Response | null = null;
-    let lastStatus = 0;
-    let lastErrorText = '';
-    let selectedModel = candidateModels[0];
+    let response: Response;
 
-    for (const candidate of candidateModels) {
-      selectedModel = candidate;
-      console.log(`Calling OpenRouter with model: ${selectedModel}`);
-
+    if (hasImageContent) {
+      // Use Lovable AI gateway for vision tasks (supports Gemini with image input)
+      const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+      if (!LOVABLE_API_KEY) {
+        throw new Error('LOVABLE_API_KEY is not configured');
+      }
+      console.log('Calling Lovable AI with model: google/gemini-2.5-flash (vision)');
+      response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages,
+          temperature: 0.3,
+        }),
+      });
+    } else {
+      // Use OpenRouter for text-only tasks
+      console.log('Calling OpenRouter with model: qwen/qwen3-coder:free');
       response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -329,46 +337,25 @@ Retorne em JSON:
           'X-OpenRouter-Title': 'GeoMatricula',
         },
         body: JSON.stringify({
-          model: selectedModel,
+          model: 'qwen/qwen3-coder:free',
           messages,
           temperature: 0.3,
         }),
       });
+    }
 
-      if (response.ok) break;
-
-      lastStatus = response.status;
-      lastErrorText = await response.text();
-      console.error('OpenRouter error:', response.status, lastErrorText);
-
-      // For multi-model fallback: retry next model on 404, 400, or 429
-      const shouldRetryNext = candidateModels.length > 1 && (
-        (response.status === 404 && lastErrorText.includes('No endpoints found')) ||
-        (hasImageContent && response.status === 400) ||
-        response.status === 429
-      );
-      if (shouldRetryNext) continue;
-
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('AI error:', response.status, errorText);
+      
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: 'Limite de requisições excedido. Tente novamente em alguns minutos.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-
-      throw new Error(`OpenRouter error: ${response.status} - ${lastErrorText}`);
-    }
-
-    if (!response || !response.ok) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: hasImageContent
-            ? 'Nenhum modelo gratuito com suporte a imagem está disponível no OpenRouter agora. Use a aba "Colar Texto" ou tente novamente em alguns minutos.'
-            : `OpenRouter error: ${lastStatus} - ${lastErrorText}`,
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      
+      throw new Error(`AI error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
