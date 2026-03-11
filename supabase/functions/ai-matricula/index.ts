@@ -327,7 +327,7 @@ Retorne em JSON:
       });
     } else {
       // Use OpenRouter for text-only tasks
-      console.log('Calling OpenRouter with model: qwen/qwen3-coder:free');
+      console.log('Calling OpenRouter with model: z-ai/glm-4.5-air:free');
       response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -337,7 +337,7 @@ Retorne em JSON:
           'X-OpenRouter-Title': 'GeoMatricula',
         },
         body: JSON.stringify({
-          model: 'qwen/qwen3-coder:free',
+          model: 'z-ai/glm-4.5-air:free',
           messages,
           temperature: 0.3,
         }),
