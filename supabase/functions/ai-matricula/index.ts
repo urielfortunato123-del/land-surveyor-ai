@@ -307,6 +307,27 @@ Retorne em JSON:
     const selectedModel = hasImageContent ? 'google/gemma-3-27b-it:free' : 'z-ai/glm-4.5-air:free';
     console.log(`Calling OpenRouter with model: ${selectedModel}`);
 
+    // Gemma doesn't support system messages — merge into first user message
+    let apiMessages = messages;
+    if (hasImageContent && messages[0]?.role === 'system') {
+      const systemContent = messages[0].content as string;
+      const rest = messages.slice(1);
+      if (rest[0]?.role === 'user') {
+        const userContent = rest[0].content;
+        if (Array.isArray(userContent)) {
+          apiMessages = [
+            { role: 'user', content: [{ type: 'text', text: systemContent + '\n\n' + (userContent.find((c: any) => c.type === 'text')?.text || '') }, ...userContent.filter((c: any) => c.type !== 'text')] },
+            ...rest.slice(1)
+          ];
+        } else {
+          apiMessages = [
+            { role: 'user', content: systemContent + '\n\n' + userContent },
+            ...rest.slice(1)
+          ];
+        }
+      }
+    }
+
     let response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -317,7 +338,7 @@ Retorne em JSON:
       },
       body: JSON.stringify({
         model: selectedModel,
-        messages,
+        messages: apiMessages,
         temperature: 0.3,
       }),
     });
