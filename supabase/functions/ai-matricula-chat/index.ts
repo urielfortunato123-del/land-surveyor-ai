@@ -241,10 +241,11 @@ IMPORTANTE: Todas as alterações são registradas em log de auditoria com data/
 
     console.log('Calling AI with context, has image:', !!fileAttachment?.type?.startsWith('image/'));
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/chat/completions?key=${GOOGLE_AI_API_KEY}`, {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GOOGLE_AI_API_KEY}`,
       },
       body: JSON.stringify({
         model: 'gemini-2.5-flash-preview-05-20',
