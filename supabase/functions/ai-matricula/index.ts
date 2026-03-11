@@ -371,7 +371,7 @@ Retorne em JSON:
       console.error('AI error: all models failed. Last error:', lastError);
       
       
-      if (response.status === 429) {
+      if (!response || response.status === 429) {
         return new Response(
           JSON.stringify({ error: 'Limite de requisições excedido. Tente novamente em alguns minutos.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
