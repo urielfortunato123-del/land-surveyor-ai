@@ -29,10 +29,7 @@ const LandingPage = () => {
           </div>
           
           <div className="flex items-center gap-3">
-            <Link to="/auth">
-              <Button variant="ghost">Entrar</Button>
-            </Link>
-            <Link to="/auth">
+            <Link to="/dashboard">
               <Button variant="hero">Começar Grátis</Button>
             </Link>
           </div>
@@ -69,7 +66,7 @@ const LandingPage = () => {
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link to="/auth">
+              <Link to="/dashboard">
                 <Button variant="hero" size="xl">
                   <FileText className="w-5 h-5" />
                   Processar Matrícula
@@ -417,7 +414,7 @@ const LandingPage = () => {
                     </li>
                   ))}
                 </ul>
-                <Link to="/auth" className="block">
+                <Link to="/dashboard" className="block">
                   <Button variant={plan.popular ? 'hero' : 'outline'} className="w-full">
                     {plan.name === 'Enterprise' ? 'Fale Conosco' : 'Começar Agora'}
                   </Button>
@@ -441,14 +438,14 @@ const LandingPage = () => {
               Pronto para começar?
             </h2>
             <p className="text-xl text-primary-foreground/80 mb-10 max-w-xl mx-auto">
-              Crie sua conta gratuita e processe sua primeira matrícula em minutos.
+              Processe sua primeira matrícula em minutos.
             </p>
-            <Link to="/auth">
+            <Link to="/dashboard">
               <Button 
                 size="xl" 
                 className="bg-background text-foreground hover:bg-background/90 shadow-xl"
               >
-                Criar Conta Gratuita
+                Começar Agora
               </Button>
             </Link>
           </motion.div>
