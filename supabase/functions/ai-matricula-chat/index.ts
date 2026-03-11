@@ -248,7 +248,7 @@ IMPORTANTE: Todas as alterações são registradas em log de auditoria com data/
         'Authorization': `Bearer ${GOOGLE_AI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'gemini-2.5-flash-preview-05-20',
+        model: 'gemini-2.5-flash',
         messages,
         temperature: 0.3,
       }),
