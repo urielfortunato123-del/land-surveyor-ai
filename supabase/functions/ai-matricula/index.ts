@@ -300,6 +300,9 @@ Retorne em JSON:
     }
 
     // OpenRouter model selection with fallback
+    const hasImageContent = messages.some(m =>
+      Array.isArray(m.content) && m.content.some((c: any) => c.type === 'image_url')
+    );
     const candidateModels = hasImageContent
       ? [
           'google/gemma-3-27b-it:free',
