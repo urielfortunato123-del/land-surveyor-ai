@@ -54,7 +54,7 @@ const Dashboard = () => {
       console.error('Error loading projects:', error);
       toast({ title: 'Erro ao carregar projetos', variant: 'destructive' });
     } else {
-      setProjects(data || []);
+      setProjects((data as any) || []);
     }
     setLoading(false);
   };
