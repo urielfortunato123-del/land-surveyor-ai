@@ -299,40 +299,72 @@ Retorne em JSON:
         throw new Error(`Ação desconhecida: ${action}`);
     }
 
-    // Use vision-capable model for image tasks, text model otherwise
-    const hasImageContent = messages.some(m => 
+    // OpenRouter model selection with fallback
+    const hasImageContent = messages.some(m =>
       Array.isArray(m.content) && m.content.some((c: any) => c.type === 'image_url')
     );
-    const selectedModel = hasImageContent ? 'qwen/qwen-2.5-vl-72b-instruct:free' : 'qwen/qwen3-coder:free';
-    console.log(`Calling OpenRouter with model: ${selectedModel}`);
+    const candidateModels = hasImageContent
+      ? [
+          'google/gemma-3-27b-it:free',
+          'meta-llama/llama-3.2-11b-vision-instruct:free',
+          'qwen/qwen2.5-vl-72b-instruct:free',
+        ]
+      : ['qwen/qwen3-coder:free'];
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'HTTP-Referer': 'https://plot-parse-forge.lovable.app',
-        'X-OpenRouter-Title': 'GeoMatricula',
-      },
-      body: JSON.stringify({
-        model: selectedModel,
-        messages,
-        temperature: 0.3,
-      }),
-    });
+    let response: Response | null = null;
+    let lastStatus = 0;
+    let lastErrorText = '';
+    let selectedModel = candidateModels[0];
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Google AI error:', response.status, errorText);
-      
+    for (const candidate of candidateModels) {
+      selectedModel = candidate;
+      console.log(`Calling OpenRouter with model: ${selectedModel}`);
+
+      response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'HTTP-Referer': 'https://plot-parse-forge.lovable.app',
+          'X-OpenRouter-Title': 'GeoMatricula',
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages,
+          temperature: 0.3,
+        }),
+      });
+
+      if (response.ok) break;
+
+      lastStatus = response.status;
+      lastErrorText = await response.text();
+      console.error('OpenRouter error:', response.status, lastErrorText);
+
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: 'Limite de requisições excedido. Tente novamente em alguns minutos.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      
-      throw new Error(`Google AI error: ${response.status} - ${errorText}`);
+
+      const noEndpoint = response.status === 404 && lastErrorText.includes('No endpoints found');
+      const imageProcessingError = hasImageContent && response.status === 400;
+      if (noEndpoint || imageProcessingError) continue;
+
+      throw new Error(`OpenRouter error: ${response.status} - ${lastErrorText}`);
+    }
+
+    if (!response || !response.ok) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: hasImageContent
+            ? 'Nenhum modelo gratuito com suporte a imagem está disponível no OpenRouter agora. Use a aba "Colar Texto" ou tente novamente em alguns minutos.'
+            : `OpenRouter error: ${lastStatus} - ${lastErrorText}`,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const data = await response.json();
