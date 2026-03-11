@@ -323,7 +323,7 @@ Retorne em JSON:
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Google AI error:', response.status, errorText);
+      console.error('OpenRouter error:', response.status, errorText);
       
       if (response.status === 429) {
         return new Response(
@@ -332,7 +332,7 @@ Retorne em JSON:
         );
       }
       
-      throw new Error(`Google AI error: ${response.status} - ${errorText}`);
+      throw new Error(`OpenRouter error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
