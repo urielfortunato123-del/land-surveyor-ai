@@ -341,16 +341,20 @@ Retorne em JSON:
       lastErrorText = await response.text();
       console.error('OpenRouter error:', response.status, lastErrorText);
 
+      // For multi-model fallback: retry next model on 404, 400, or 429
+      const shouldRetryNext = candidateModels.length > 1 && (
+        (response.status === 404 && lastErrorText.includes('No endpoints found')) ||
+        (hasImageContent && response.status === 400) ||
+        response.status === 429
+      );
+      if (shouldRetryNext) continue;
+
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: 'Limite de requisições excedido. Tente novamente em alguns minutos.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-
-      const noEndpoint = response.status === 404 && lastErrorText.includes('No endpoints found');
-      const imageProcessingError = hasImageContent && response.status === 400;
-      if (noEndpoint || imageProcessingError) continue;
 
       throw new Error(`OpenRouter error: ${response.status} - ${lastErrorText}`);
     }
