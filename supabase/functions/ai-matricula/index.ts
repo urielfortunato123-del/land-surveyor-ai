@@ -378,7 +378,7 @@ Retorne em JSON:
         );
       }
       
-      throw new Error(`AI error: ${response.status} - ${errorText}`);
+      throw new Error(`AI error: all models failed - ${lastError}`);
     }
 
     const data = await response.json();
