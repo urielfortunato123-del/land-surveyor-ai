@@ -37,9 +37,9 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const GOOGLE_AI_API_KEY = Deno.env.get('GOOGLE_AI_API_KEY');
+    if (!GOOGLE_AI_API_KEY) {
+      throw new Error('GOOGLE_AI_API_KEY is not configured');
     }
 
     const body: RequestBody = await req.json();
@@ -299,37 +299,35 @@ Retorne em JSON:
         throw new Error(`Ação desconhecida: ${action}`);
     }
 
-    console.log(`Calling Lovable AI with model: ${model}`);
+    console.log(`Calling Google AI Studio with model: ${model}`);
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    // Map model names for Google AI Studio
+    const googleModel = model === 'google/gemini-2.5-flash' ? 'gemini-2.5-flash-preview-05-20' : 'gemini-2.5-flash-preview-05-20';
+    
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/chat/completions?key=${GOOGLE_AI_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model,
+        model: googleModel,
         messages,
         temperature: 0.3,
       }),
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Google AI error:', response.status, errorText);
+      
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: 'Limite de requisições excedido. Tente novamente em alguns minutos.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: 'Créditos insuficientes. Adicione créditos na sua conta.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      const errorText = await response.text();
-      console.error('AI gateway error:', response.status, errorText);
-      throw new Error(`AI gateway error: ${response.status}`);
+      
+      throw new Error(`Google AI error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
