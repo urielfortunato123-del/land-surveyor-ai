@@ -438,14 +438,14 @@ const LandingPage = () => {
               Pronto para começar?
             </h2>
             <p className="text-xl text-primary-foreground/80 mb-10 max-w-xl mx-auto">
-              Crie sua conta gratuita e processe sua primeira matrícula em minutos.
+              Processe sua primeira matrícula em minutos.
             </p>
-            <Link to="/auth">
+            <Link to="/dashboard">
               <Button 
                 size="xl" 
                 className="bg-background text-foreground hover:bg-background/90 shadow-xl"
               >
-                Criar Conta Gratuita
+                Começar Agora
               </Button>
             </Link>
           </motion.div>
