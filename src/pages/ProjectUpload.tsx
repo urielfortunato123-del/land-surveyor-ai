@@ -206,7 +206,7 @@ const ProjectUpload = () => {
         // Process from pasted text
         addLog('Analisando texto colado...');
         setProgress(25);
-        addLog('Enviando para análise com IA (Gemini Pro)...');
+        addLog('Enviando para análise com IA...');
         setProgress(35);
         response = await aiMatriculaApi.extractFromText(pastedText);
       } else {
