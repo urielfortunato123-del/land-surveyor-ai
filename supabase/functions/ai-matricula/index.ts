@@ -37,9 +37,9 @@ serve(async (req) => {
   }
 
   try {
-    const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
-    if (!OPENROUTER_API_KEY) {
-      throw new Error('OPENROUTER_API_KEY is not configured');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY is not configured');
     }
 
     const body: RequestBody = await req.json();
@@ -299,86 +299,46 @@ Retorne em JSON:
         throw new Error(`Ação desconhecida: ${action}`);
     }
 
-    // All requests go through OpenRouter
+    // Use Lovable AI Gateway
     const hasImageContent = messages.some(m =>
       Array.isArray(m.content) && m.content.some((c: any) => c.type === 'image_url')
     );
     
-    // Fallback chain: try free models first, then paid
-    const modelChain = hasImageContent 
-      ? ['google/gemma-3-27b-it:free', 'meta-llama/llama-4-maverick:free', 'google/gemini-2.5-flash-preview:thinking']
-      : ['z-ai/glm-4.5-air:free', 'deepseek/deepseek-chat-v3-0324:free', 'google/gemini-2.5-flash-preview:thinking'];
+    // Select model: vision tasks use gemini-2.5-pro, text tasks use gemini-2.5-flash
+    const selectedModel = hasImageContent ? 'google/gemini-2.5-pro' : 'google/gemini-2.5-flash';
+    console.log(`Calling Lovable AI Gateway with model: ${selectedModel}`);
 
-    // Gemma doesn't support system messages — merge into first user message
-    let apiMessages = messages;
-    if (hasImageContent && messages[0]?.role === 'system') {
-      const systemContent = messages[0].content as string;
-      const rest = messages.slice(1);
-      if (rest[0]?.role === 'user') {
-        const userContent = rest[0].content;
-        if (Array.isArray(userContent)) {
-          apiMessages = [
-            { role: 'user', content: [{ type: 'text', text: systemContent + '\n\n' + (userContent.find((c: any) => c.type === 'text')?.text || '') }, ...userContent.filter((c: any) => c.type !== 'text')] },
-            ...rest.slice(1)
-          ];
-        } else {
-          apiMessages = [
-            { role: 'user', content: systemContent + '\n\n' + userContent },
-            ...rest.slice(1)
-          ];
-        }
-      }
-    }
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: selectedModel,
+        messages,
+        temperature: 0.3,
+      }),
+    });
 
-    let response: Response | null = null;
-    let lastError = '';
-
-    for (const modelToTry of modelChain) {
-      console.log(`Trying model: ${modelToTry}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('AI Gateway error:', response.status, errorText);
       
-      // For non-free models, use original messages (they support system role)
-      const msgsToSend = modelToTry.includes(':free') ? apiMessages : messages;
-
-      response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-          'HTTP-Referer': 'https://plot-parse-forge.lovable.app',
-          'X-OpenRouter-Title': 'GeoMatricula',
-        },
-        body: JSON.stringify({
-          model: modelToTry,
-          messages: msgsToSend,
-          temperature: 0.3,
-        }),
-      });
-
-      if (response.ok) {
-        console.log(`Success with model: ${modelToTry}`);
-        break;
-      }
-
-      lastError = await response.text();
-      console.warn(`Model ${modelToTry} failed (${response.status}): ${lastError}`);
-      
-      if (response.status !== 429 && response.status !== 503) {
-        break; // Only retry on rate limit or service unavailable
-      }
-    }
-
-    if (!response || !response.ok) {
-      console.error('AI error: all models failed. Last error:', lastError);
-      
-      
-      if (!response || response.status === 429) {
+      if (response.status === 429) {
         return new Response(
-          JSON.stringify({ error: 'Limite de requisições excedido. Tente novamente em alguns minutos.' }),
+          JSON.stringify({ error: 'Limite de requisições excedido. Aguarde alguns segundos e tente novamente.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: 'Créditos insuficientes. Adicione créditos no workspace Lovable (Settings → Workspace → Usage).' }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       
-      throw new Error(`AI error: all models failed - ${lastError}`);
+      throw new Error(`AI Gateway error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
