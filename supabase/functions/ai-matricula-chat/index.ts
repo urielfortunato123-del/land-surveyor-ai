@@ -118,9 +118,9 @@ serve(async (req) => {
   }
 
   try {
-    const GOOGLE_AI_API_KEY = Deno.env.get('GOOGLE_AI_API_KEY');
-    if (!GOOGLE_AI_API_KEY) {
-      throw new Error('GOOGLE_AI_API_KEY is not configured');
+    const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
+    if (!OPENROUTER_API_KEY) {
+      throw new Error('OPENROUTER_API_KEY is not configured');
     }
 
     const body: RequestBody = await req.json();
@@ -241,14 +241,16 @@ IMPORTANTE: Todas as alterações são registradas em log de auditoria com data/
 
     console.log('Calling AI with context, has image:', !!fileAttachment?.type?.startsWith('image/'));
 
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/chat/completions', {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GOOGLE_AI_API_KEY}`,
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'HTTP-Referer': 'https://plot-parse-forge.lovable.app',
+        'X-OpenRouter-Title': 'GeoMatricula',
       },
       body: JSON.stringify({
-        model: 'gemini-2.5-flash',
+        model: 'qwen/qwen3-coder:free',
         messages,
         temperature: 0.3,
       }),
