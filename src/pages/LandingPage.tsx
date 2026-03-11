@@ -66,7 +66,7 @@ const LandingPage = () => {
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link to="/auth">
+              <Link to="/dashboard">
                 <Button variant="hero" size="xl">
                   <FileText className="w-5 h-5" />
                   Processar Matrícula
