@@ -242,7 +242,7 @@ IMPORTANTE: Todas as alterações são registradas em log de auditoria com data/
     const hasImageAttachment = !!fileAttachment?.type?.startsWith('image/');
     const selectedModel = hasImageAttachment
       ? 'meta-llama/llama-3.2-11b-vision-instruct:free'
-      : 'qwen/qwen3-coder:free';
+      : 'z-ai/glm-4.5-air:free';
 
     console.log('Calling AI with context, has image:', hasImageAttachment, 'model:', selectedModel);
 
