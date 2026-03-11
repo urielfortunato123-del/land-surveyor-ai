@@ -299,16 +299,18 @@ Retorne em JSON:
         throw new Error(`Ação desconhecida: ${action}`);
     }
 
-    console.log(`Calling Lovable AI with model: ${model}`);
+    console.log(`Calling Google AI Studio with model: ${model}`);
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    // Map model names for Google AI Studio
+    const googleModel = model === 'google/gemini-2.5-flash' ? 'gemini-2.5-flash-preview-05-20' : 'gemini-2.5-flash-preview-05-20';
+    
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/chat/completions?key=${GOOGLE_AI_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model,
+        model: googleModel,
         messages,
         temperature: 0.3,
       }),
