@@ -349,7 +349,8 @@ Retorne em JSON:
       }
 
       const noEndpoint = response.status === 404 && lastErrorText.includes('No endpoints found');
-      if (noEndpoint) continue;
+      const imageProcessingError = hasImageContent && response.status === 400;
+      if (noEndpoint || imageProcessingError) continue;
 
       throw new Error(`OpenRouter error: ${response.status} - ${lastErrorText}`);
     }
