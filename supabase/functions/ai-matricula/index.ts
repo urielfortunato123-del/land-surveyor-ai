@@ -299,50 +299,28 @@ Retorne em JSON:
         throw new Error(`Ação desconhecida: ${action}`);
     }
 
-    // Detect if request has image content
+    // All requests go through OpenRouter
+    // Vision tasks use a vision-capable model, text tasks use GLM
     const hasImageContent = messages.some(m =>
       Array.isArray(m.content) && m.content.some((c: any) => c.type === 'image_url')
     );
+    const selectedModel = hasImageContent ? 'google/gemma-3-27b-it:free' : 'z-ai/glm-4.5-air:free';
+    console.log(`Calling OpenRouter with model: ${selectedModel}`);
 
-    let response: Response;
-
-    if (hasImageContent) {
-      // Use Lovable AI gateway for vision tasks (supports Gemini with image input)
-      const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-      if (!LOVABLE_API_KEY) {
-        throw new Error('LOVABLE_API_KEY is not configured');
-      }
-      console.log('Calling Lovable AI with model: google/gemini-2.5-flash (vision)');
-      response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          messages,
-          temperature: 0.3,
-        }),
-      });
-    } else {
-      // Use OpenRouter for text-only tasks
-      console.log('Calling OpenRouter with model: z-ai/glm-4.5-air:free');
-      response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-          'HTTP-Referer': 'https://plot-parse-forge.lovable.app',
-          'X-OpenRouter-Title': 'GeoMatricula',
-        },
-        body: JSON.stringify({
-          model: 'z-ai/glm-4.5-air:free',
-          messages,
-          temperature: 0.3,
-        }),
-      });
-    }
+    let response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'HTTP-Referer': 'https://plot-parse-forge.lovable.app',
+        'X-OpenRouter-Title': 'GeoMatricula',
+      },
+      body: JSON.stringify({
+        model: selectedModel,
+        messages,
+        temperature: 0.3,
+      }),
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
