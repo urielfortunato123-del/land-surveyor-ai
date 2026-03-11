@@ -302,7 +302,11 @@ Retorne em JSON:
     console.log(`Calling Google AI Studio with model: ${model}`);
 
     // Map model names for Google AI Studio
-    const googleModel = model === 'google/gemini-2.5-flash' ? 'gemini-2.5-flash-preview-05-20' : 'gemini-2.5-flash-preview-05-20';
+    const modelMap: Record<string, string> = {
+      'google/gemini-2.5-pro': 'gemini-2.5-pro-preview-06-05',
+      'google/gemini-2.5-flash': 'gemini-2.5-flash-preview-05-20',
+    };
+    const googleModel = modelMap[model] || 'gemini-2.5-flash-preview-05-20';
     
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/chat/completions?key=${GOOGLE_AI_API_KEY}`, {
       method: 'POST',
