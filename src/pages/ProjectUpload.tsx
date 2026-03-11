@@ -268,6 +268,19 @@ const ProjectUpload = () => {
         addLog('⚠️ Não foi possível determinar a localização exata');
       }
 
+      // Save to project history
+      projectHistory.add({
+        id: projectId,
+        title: projectName || `Matrícula ${extractedData.matricula || 'Nova'}`,
+        matricula: extractedData.matricula,
+        city: extractedData.city,
+        state: extractedData.state,
+        owner: extractedData.owner,
+        segmentsCount: extractedData.segments?.length || 0,
+        createdAt: new Date().toISOString(),
+        status: 'processed',
+      });
+
       addLog('Dados salvos no sistema');
       setProgress(100);
 
